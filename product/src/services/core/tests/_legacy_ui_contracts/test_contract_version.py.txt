@@ -1,0 +1,86 @@
+import re
+from pathlib import Path
+
+from app.meta import API_CONTRACT_VERSION
+
+
+PRODUCT_ROOT = Path(__file__).resolve().parents[4]
+FRONTEND_PATH = PRODUCT_ROOT / "src" / "services" / "core" / "app" / "ui" / "app.js"
+START_SCRIPT_PATH = PRODUCT_ROOT / "start-product.cmd"
+
+
+def test_frontend_and_launcher_contract_mirrors_match_backend_authority() -> None:
+    frontend = FRONTEND_PATH.read_text(encoding="utf-8")
+    launcher = START_SCRIPT_PATH.read_text(encoding="utf-8")
+
+    frontend_match = re.search(
+        r'\bconst\s+FRONTEND_API_CONTRACT_VERSION\s*=\s*["\']([^"\']+)["\']',
+        frontend,
+    )
+    launcher_match = re.search(
+        r'^\s*set\s+"EXPECTED_API_CONTRACT_VERSION=([^"]+)"\s*$',
+        launcher,
+        flags=re.MULTILINE | re.IGNORECASE,
+    )
+
+    assert frontend_match, "frontend contract mirror is missing"
+    assert launcher_match, "launcher contract mirror is missing"
+    assert frontend_match.group(1) == API_CONTRACT_VERSION
+    assert launcher_match.group(1) == API_CONTRACT_VERSION
+    assert "__API_CONTRACT_VERSION__" not in frontend
+
+
+def test_frontend_contract_guard_rejects_missing_or_mismatched_legacy_service() -> None:
+    frontend = FRONTEND_PATH.read_text(encoding="utf-8")
+
+    assert 'const CONTRACT_MISMATCH_MESSAGE = "运行服务版本过旧，请重启产品";' in frontend
+    assert "function assertApiContractCompatible" in frontend
+    assert 'state.apiContractStatus !== "compatible"' in frontend
+    assert '!["/health", "/api/v1/meta"].includes(bootstrapPath)' in frontend
+    assert "const runtimeVersions = [health?.api_contract_version, meta?.api_contract_version];" in frontend
+    assert "runtimeVersions.some((version) => version !== FRONTEND_API_CONTRACT_VERSION)" in frontend
+    assert 'error.code === "API_CONTRACT_MISMATCH" || error.status' in frontend
+
+    # The three binary/download requests are business calls too; each must
+    # pass through the same guard instead of bypassing the contract check.
+    for marker in (
+        "/api/v1/jobs/${encodeURIComponent(jobId)}/diagnostics/export",
+        "/api/v1/contents/export",
+        "/api/v1/contents/${encodeURIComponent(contentId)}/export?format=",
+    ):
+        position = frontend.index(marker)
+        assert frontend.rfind("assertApiContractCompatible();", 0, position) > frontend.rfind(
+            "function ", 0, position
+        )
+
+
+def test_launcher_does_not_reuse_a_mismatched_service() -> None:
+    launcher = START_SCRIPT_PATH.read_text(encoding="utf-8")
+
+    assert "api_contract_version" in launcher
+    assert "META_URL=http://127.0.0.1:8765/api/v1/meta" in launcher
+    mismatch_branch = launcher.index("if errorlevel 2 goto :error_contract")
+    service_ready = launcher.index("\n:service_ready")
+    assert mismatch_branch < service_ready
+    assert "Close the old product process and retry" in launcher
+
+
+def test_launcher_starts_product_shell_after_service_is_ready() -> None:
+    launcher = START_SCRIPT_PATH.read_text(encoding="utf-8")
+
+    shell_path = (
+        'set "SHELL_EXE=%PRODUCT_DIR%local\\desktop-shell\\'
+        'bin\\Release\\net10.0-windows10.0.17763.0\\LoginShell.exe"'
+    )
+    shell_guard = 'if not exist "%SHELL_EXE%" goto :error_shell'
+    shell_launch = 'start "Multisource Knowledge Base" "%SHELL_EXE%" --product "%APP_URL%"'
+
+    assert shell_path in launcher
+    assert shell_guard in launcher
+    assert launcher.index(shell_guard) < launcher.index(":start_service")
+    assert "\n:error_shell\n" in launcher
+    assert "LoginShell.csproj" in launcher
+    service_ready = launcher.index("\n:service_ready\n")
+    assert service_ready < launcher.index(shell_launch)
+    assert shell_launch in launcher
+    assert 'start "" "%APP_URL%"' not in launcher

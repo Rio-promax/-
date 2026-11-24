@@ -1,0 +1,122 @@
+from types import SimpleNamespace
+
+import pytest
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+from app.adapters.sources.prepared import PreparedSource
+from app.adapters.summary.openai_compatible import _summary_input
+from app.api.main import create_app
+from app.api.schemas import LocalImportRequest
+from app.db.store import SQLiteStore
+from app.domain.models import AnalysisSettings, Chunk, ContentKind, SourcePlatform, SummaryStrength, Transcript, TranscriptSegment
+from app.knowledge.templates import SUMMARY_STYLES
+from app.workflows import analyze
+from app.workflows.analyze import AnalysisWorkflow
+
+
+@pytest.mark.parametrize("style", SUMMARY_STYLES)
+@pytest.mark.parametrize("strength", list(SummaryStrength))
+def test_style_and_strength_preserve_source_and_remain_independent(style, strength):
+    chunks = (Chunk(1, 0, 8, "先加热到八十度，再加入原料。", "hash", 20),)
+    text = _summary_input("操作", strength, chunks, None, style=style)
+    assert f"总结强度：{strength.value}" in text
+    assert SUMMARY_STYLES[style][1] in text
+    assert chunks[0].text in text
+    assert "输出模板：" not in text
+    assert "表达风格控制组织方式与表达" in text
+    assert "目录" not in text
+    assert "*Screenshot" not in text
+
+
+@pytest.mark.parametrize("style", ["xiaohongshu", "life_journal", "guide", "unknown"])
+def test_removed_and_unknown_styles_are_rejected(style):
+    with pytest.raises(ValidationError):
+        LocalImportRequest(text="材料", summary_style=style)
+
+
+def test_missing_style_is_deferred_for_legacy_template_compatibility():
+    assert LocalImportRequest(text="材料").summary_style is None
+
+
+def test_workflow_archives_style_and_edited_version_inherits_it(tmp_path, monkeypatch):
+    calls = []
+
+    class FakeSummarizer:
+        def __init__(self, settings):
+            pass
+
+        def summarize_chunks(self, chunks, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(markdown="# 步骤\n\n加热后加入原料。", overview="操作步骤", key_points=())
+
+        def generate_introduction(self, **kwargs):
+            return "原料处理步骤"
+
+    monkeypatch.setattr(analyze, "OpenAICompatibleSummarizer", FakeSummarizer)
+    store = SQLiteStore(f"sqlite:///{(tmp_path / 'style.db').as_posix()}")
+    workflow = AnalysisWorkflow(store, tmp_path / "archive")
+    transcript = Transcript("zh-CN", "subtitle", "test", (TranscriptSegment(0, 8, "先加热，再加入原料。"),))
+    source = PreparedSource(kind=ContentKind.ARTICLE, title="操作", transcript=transcript,
+        content_hash="style", source_path=None, source_url="https://example.test/style",
+        acquisition_method="test", platform=SourcePlatform.WEB)
+    content, run, job = workflow.submit(source, AnalysisSettings(model="test-model", summary_style="tutorial", strength=SummaryStrength.DEEP))
+    workflow.run(job.id, transcript)
+    assert store.get_job(job.id).state.value == "completed"
+    assert calls[0]["style"] == "tutorial"
+    assert calls[0]["strength"] == SummaryStrength.DEEP
+    assert run.settings_snapshot["summary_style"] == "tutorial"
+    version = store.list_summary_versions(content.id)[0]
+    assert version.summary_style == "tutorial"
+    assert version.summary_strength == "deep"
+    records = list((tmp_path / "archive").rglob("record.json"))
+    import json
+    assert records and json.loads(records[0].read_text(encoding="utf-8"))["summary_style"] == "tutorial"
+    store.engine.dispose()
+    with TestClient(create_app(f"sqlite:///{(tmp_path / 'style.db').as_posix()}", tmp_path / "archive")) as client:
+        response = client.put(f"/api/v1/contents/{content.id}/summary-versions/{version.id}", json={"markdown": "# 修改后的步骤"})
+        assert response.status_code == 201
+        assert response.json()["summary_style"] == "tutorial"
+        versions = client.get(f"/api/v1/contents/{content.id}/summary-versions").json()
+        assert versions[1]["summary_style"] == "tutorial"
+
+
+def test_existing_database_adds_nullable_style_without_relabeling_history(tmp_path):
+    from sqlalchemy import text, inspect
+
+    url = f"sqlite:///{(tmp_path / 'old.db').as_posix()}"
+    store = SQLiteStore(url)
+    # Simulate the previous schema, then exercise the desktop startup upgrade.
+    with store.engine.begin() as connection:
+        connection.execute(text("ALTER TABLE summary_versions DROP COLUMN summary_style"))
+    store.engine.dispose()
+    reopened = SQLiteStore(url)
+    assert "summary_style" in {c["name"] for c in inspect(reopened.engine).get_columns("summary_versions")}
+    reopened.engine.dispose()
+
+
+def test_import_page_exposes_only_the_approved_styles():
+    from html.parser import HTMLParser
+    from pathlib import Path
+
+    class SelectOptions(HTMLParser):
+        active = False
+        values = []
+        ids = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == "select":
+                self.active = attrs.get("id") == "summary-style"
+                self.ids.append(attrs.get("id"))
+            if tag == "option" and self.active:
+                self.values.append(attrs["value"])
+
+        def handle_endtag(self, tag):
+            if tag == "select":
+                self.active = False
+
+    parser = SelectOptions()
+    parser.feed((Path(__file__).parents[1] / "app/ui/index.html").read_text(encoding="utf-8"))
+    assert parser.values == list(SUMMARY_STYLES)
+    assert "summary-template" not in parser.ids

@@ -1,0 +1,14 @@
+{
+  "name": "multisource-kb-mobile-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Android Capacitor shell for the multisource knowledge base",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/cli": "8.6.0",
+    "@capacitor/core": "8.6.0"
+  }
+}

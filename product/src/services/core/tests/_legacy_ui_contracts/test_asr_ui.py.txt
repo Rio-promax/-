@@ -1,0 +1,46 @@
+"""Static contracts for the independent cloud ASR settings UI."""
+
+from pathlib import Path
+
+
+UI_ROOT = Path(__file__).resolve().parents[1] / "app" / "ui"
+
+
+def test_asr_model_picker_has_no_browser_datalist_or_fixed_catalog() -> None:
+    page = (UI_ROOT / "index.html").read_text(encoding="utf-8")
+    script = (UI_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="asr-model-options"' in page
+    assert 'role="combobox"' in page
+    assert "<datalist" not in page
+    assert 'list="asr-model-options"' not in page
+    assert "ASR_PROVIDER_MODELS" not in script
+    assert "function renderAsrModelOptions(models = state.asrConnection.models)" in script
+
+
+def test_asr_uses_independent_discovery_validation_and_settings_save() -> None:
+    script = (UI_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "asrConnection:" in script
+    assert 'api("/api/v1/settings/asr/models"' in script
+    assert 'api("/api/v1/settings/asr/test"' in script
+    assert 'api("/api/v1/settings", { method: "PUT"' in script
+    assert "state.summaryConnection" in script  # summary retains its own state
+    assert "state.asrConnection" in script
+    assert 'id="test-asr"' in (UI_ROOT / "index.html").read_text(encoding="utf-8")
+
+
+def test_copy_summary_to_asr_keeps_model_independent_and_never_reads_saved_secret() -> None:
+    page = (UI_ROOT / "index.html").read_text(encoding="utf-8")
+    script = (UI_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="copy-summary-to-asr"' in page
+    assert "function asrUrlFromSummaryUrl(url)" in script
+    assert r"/(chat\/completions|responses)$/i" in script
+    assert "asrKey.value = keySource.key" in script
+    assert "state.asrCopySummaryKeyOnSave = true" in script
+    assert "payload.copy_summary_key = true" in script
+    assert "summary_api_key_configured" in script
+    assert "summary_model" not in script.split("function copySummaryConfigToAsr", 1)[1].split(
+        "async function discoverAsrModels", 1
+    )[0]

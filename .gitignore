@@ -1,0 +1,59 @@
+.review_tmp/
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+.venv-refactor/
+.venv-refactor-clean/
+venv/
+*.egg-info/
+.coverage
+coverage.xml
+htmlcov/
+.cache/
+
+# JavaScript dependencies and build output
+node_modules/
+dist/
+out/
+.vite/
+.eslintcache
+.pnpm-store/
+*.tsbuildinfo
+coverage/
+
+# Local runtime data, caches and bundled skill dependencies
+product/local/*
+!product/local/README.md
+skills/summary/runtime/
+
+# Separate nested repository owned by another agent sandbox account
+.skill-upload-staging/
+
+# ASR model weights (hundreds of MB each, re-downloadable)
+product/src/services/core/local/
+product/local/asr-models/
+
+# Downloaded research artifacts and independently versioned reference projects
+product/docs/过程/调研/来源/raw/
+product/docs/过程/调研/来源/repos/
+product/docs/过程/产出/samples/
+product/docs/过程/产出/generated/
+
+# Local application data and secrets
+*.db
+*.sqlite
+*.sqlite3
+knowledge-root/
+.env
+.env.*
+!*.env.example
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.log

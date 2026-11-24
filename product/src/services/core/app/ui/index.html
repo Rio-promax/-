@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>内容知识库</title>
+  <link rel="stylesheet" href="/ui/style.css" />
+  <script defer src="/ui/app.js"></script>
+</head>
+<body>
+  <!-- 图标集：5 个导航（含太阳）+ 各页功能图标 -->
+  <svg class="sprite" aria-hidden="true" width="0" height="0" focusable="false">
+    <symbol id="i-tray" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5v8m0 0-3-3m3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 9h8M8 12h8M8 15h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6.2C10 4.8 7.6 4.5 4.5 5v13c3.1-.5 5.5-.2 7.5 1.2 2-1.4 4.4-1.7 7.5-1.2V5c-3.1-.5-5.5-.2-7.5 1.2Zm0 0v13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="i-bubble" viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.6 3.6a.5.5 0 0 1-.8-.4V16.5A2.5 2.5 0 0 1 4 14Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m12 7.2.8 1.7 1.9.2-1.4 1.3.4 1.9-1.7-1-1.7 1 .4-1.9-1.4-1.3 1.9-.2Z" fill="currentColor"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2.7v2.3M12 19v2.3M2.7 12H5M19 12h2.3M5.4 5.4 7 7M17 17l1.6 1.6M18.6 5.4 17 7M7 17l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.7" cy="10.7" r="5.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m14.8 14.8 4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5.5h16l-6.2 7.2v5.2l-3.6 2v-7.2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 3.4v2.1M12 18.5v2.1M3.4 12h2.1M18.5 12h2.1M5.9 5.9l1.5 1.5M16.6 16.6l1.5 1.5M18.1 5.9l-1.5 1.5M7.4 16.6l-1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 6.5 9 12l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M5 8h14M5 12h14M5 16h14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M16 8V6.4A2.4 2.4 0 0 0 13.6 4H6.4A2.4 2.4 0 0 0 4 6.4v7.2A2.4 2.4 0 0 0 6.4 16H8" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 4v10m0 0-3.4-3.4M12 14l3.4-3.4M5 16.5v1.1A2.4 2.4 0 0 0 7.4 20h9.2a2.4 2.4 0 0 0 2.4-2.4v-1.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M9.5 7V5.2A1.2 1.2 0 0 1 10.7 4h2.6a1.2 1.2 0 0 1 1.2 1.2V7m-8 0 .8 12.1A1.8 1.8 0 0 0 9.1 21h5.8a1.8 1.8 0 0 0 1.8-1.9L17.5 7M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="18" cy="12" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5m0 0-5 5m5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 9a7.2 7.2 0 1 0 .6 5.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M19 4.5V9h-4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M13 5h6v6m0-6-8.5 8.5M18 14.5V17a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 5 17V9a2.5 2.5 0 0 1 2.5-2.5H10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11m0-11-11 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chev-left" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chev-right" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="6" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="18" r="1.4" fill="currentColor"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.7 5.1L19 9.8l-5.3 1.7L12 17l-1.7-5.5L5 9.8l5.3-1.7Z" fill="currentColor"/><path d="m18.5 16 .6 1.8 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6Z" fill="currentColor"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3.5h7l5 5V20a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20Zm7 0v5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="i-library-shelf" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M4.5 18V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v13zm5.5 0V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v13z" fill="var(--group-icon-fill)"/><path d="m15 5 2.6-.8a.8.8 0 0 1 1 .6L22 17l-3.7 1z" fill="var(--group-icon-fill)"/><path d="M6.5 7h.1m5.4 0h.1"/></g></symbol>
+    <symbol id="i-folder-round" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.2h8a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" fill="var(--group-icon-fill)"/><path d="M3 12c3-.2 4-1.8 7-1.8s4.5 2 11 1.8V18a1.7 1.7 0 0 1-1.7 1.7H5A2 2 0 0 1 3 18Z" fill="white" stroke="none"/><path d="M3 7a2 2 0 0 1 2-2h4l2 2.2h8a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="9.4" cy="15" r="1.6" fill="var(--group-icon-dot)" stroke="none"/><circle cx="14.6" cy="15" r="1.6" fill="var(--group-icon-dot)" stroke="none"/></g></symbol>
+    <symbol id="i-tag-round" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 12.1 12 3.8a2 2 0 0 1 1.4-.6h5.1a2 2 0 0 1 2 2v5.1a2 2 0 0 1-.6 1.4l-8.4 8.7a1.8 1.8 0 0 1-2.5 0l-5.8-5.8a1.8 1.8 0 0 1 0-2.5Z" fill="#c5e1ff"/><circle cx="15.8" cy="7.8" r="1.35" stroke="var(--group-icon-dot)"/></g></symbol>
+  </svg>
+
+  <div class="stage">
+    <!-- 5 个带浅色圆角方框的导航图标，第 5 个为太阳；名称由 data-tip 承载 -->
+    <nav class="rail" aria-label="主导航">
+      <button class="rail__item is-current" type="button" data-route="intake" data-tip="内容接入" aria-label="内容接入" aria-current="page"><svg class="ico"><use href="#i-tray"/></svg></button>
+      <button class="rail__item" type="button" data-route="tasks" data-tip="任务" aria-label="任务"><svg class="ico"><use href="#i-list"/></svg></button>
+      <button class="rail__item" type="button" data-route="library" data-tip="知识库" aria-label="知识库"><svg class="ico"><use href="#i-book"/></svg></button>
+      <button class="rail__item" type="button" data-route="ask" data-tip="AI 问答" aria-label="AI 问答"><svg class="ico"><use href="#i-bubble"/></svg></button>
+      <button class="rail__item" type="button" data-route="settings" data-tip="设置" aria-label="设置"><svg class="ico"><use href="#i-sun"/></svg></button>
+    </nav>
+
+    <main class="stage__main">
+      <!-- 图五：内容接入（限宽 960px 连续单张白卡） -->
+      <section class="screen" data-screen="intake">
+        <header class="screen__head">
+          <h1 class="screen__title">内容接入</h1>
+        </header>
+        <div class="tabs" role="tablist" aria-label="接入方式">
+          <button class="tabs__item is-current" type="button" role="tab" data-intake-tab="link" aria-selected="true">平台链接</button>
+          <button class="tabs__item" type="button" role="tab" data-intake-tab="local" aria-selected="false">本地识别</button>
+        </div>
+
+        <section class="intake-card">
+          <div class="intake-card__panel" data-intake-panel="link">
+            <label class="field">
+              <span class="field__label">链接</span>
+            <textarea class="input input--area" id="intake-links" rows="2" placeholder="每行一个链接"></textarea>
+            </label>
+            <div class="intake-card__query">
+              <button class="btn btn--outline" type="button" data-act="intake-query">查询</button>
+              <span class="intake-count" id="intake-count" role="status" aria-live="polite">识别0条</span>
+            </div>
+            <div class="intake-preview" id="intake-preview" role="status" aria-live="polite" hidden></div>
+          </div>
+
+          <div class="intake-card__panel" data-intake-panel="local" hidden>
+            <label class="field">
+              <span class="field__label">文件或目录</span>
+              <span class="dropzone" id="intake-drop"><svg class="ico"><use href="#i-file"/></svg><span>拖入文件，或点击选择本地媒体</span><input class="visually-hidden" type="file" id="intake-file" multiple /></span>
+            </label>
+            <div class="intake-card__query">
+              <button class="btn btn--outline" type="button" data-act="intake-local">识别</button>
+              <span class="intake-count" id="intake-local-count" role="status" aria-live="polite">识别 0 个</span>
+            </div>
+          </div>
+
+          <span class="visually-hidden flag flag--ok" id="intake-ready">已就绪</span>
+
+          <div class="intake-card__options">
+            <div class="field">
+              <span class="field__label">表达风格</span>
+              <span class="select-wrap"><select class="input" id="intake-style"><option value="general">通用</option><option value="course_notes">课程笔记</option><option value="academic">学术</option><option value="tutorial">教程</option><option value="sharing">分享</option><option value="task_oriented">任务导向</option><option value="business">商业风格</option><option value="meeting_minutes">会议纪要</option></select><svg class="ico"><use href="#i-down"/></svg></span>
+            </div>
+            <div class="field">
+              <span class="field__label">总结强度</span>
+              <span class="select-wrap"><select class="input" id="intake-strength"><option value="quick">简要</option><option value="standard" selected>标准</option><option value="deep">详细</option></select><svg class="ico"><use href="#i-down"/></svg></span>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field__label">补充要求</span>
+            <textarea class="input input--area" id="intake-extra-instruction" rows="2"></textarea>
+          </div>
+
+          <section class="account-import-strip account-import-strip--compact" aria-label="账号快捷导入">
+            <h2 class="account-import-strip__title">账号快捷导入</h2>
+            <div class="account-import-strip__actions">
+              <button class="btn btn--outline" type="button" data-act="account-import-start" data-source="favorite">B站收藏</button>
+              <button class="btn btn--outline" type="button" data-act="account-import-start" data-source="watchlater">B站稍后再看</button>
+              <button class="btn btn--outline" type="button" data-act="account-import-start" data-source="xiaohongshu">小红书收藏</button>
+            </div>
+          </section>
+
+          <div class="intake-card__divider"></div>
+
+          <div class="intake-card__foot">
+            <span class="intake-submit__check"><span>提交前检查</span><span class="dot" aria-label="检查通过"></span></span>
+            <div class="intake-card__actions">
+              <button class="btn btn--quiet" type="button" data-act="intake-clear">清空</button>
+              <button class="btn btn--primary" type="button" data-act="intake-submit">提交</button>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- 图二：任务（启用编辑前 / 启用编辑后两种 UI） -->
+      <section class="screen" data-screen="tasks" hidden>
+        <header class="screen__head">
+          <h1 class="screen__title">任务</h1>
+          <div class="screen__actions">
+            <button class="link-btn" type="button" data-act="jobs-select-all" id="jobs-select-all" hidden>全选</button>
+            <div class="jobs-batch-progress" id="jobs-batch-progress" role="status" hidden></div>
+            <div class="jobs-batch-inline" id="jobs-batch-inline" hidden>
+              <span id="jobs-selected-inline">已选 0 项</span>
+              <button class="btn btn--quiet" type="button" data-act="jobs-pause">暂停</button>
+              <button class="btn btn--quiet" type="button" data-act="jobs-resume">继续</button>
+              <button class="btn btn--quiet" type="button" data-act="jobs-retry">重试</button>
+              <button class="btn btn--quiet" type="button" data-act="jobs-delete">删除</button>
+            </div>
+            <button class="link-btn" type="button" data-act="jobs-edit" id="jobs-edit-btn">编辑</button>
+            <button class="link-btn" type="button" data-act="jobs-refresh" id="jobs-refresh-btn">刷新列表</button>
+          </div>
+        </header>
+        <div class="jobs-filter">
+          <div class="tabs tabs--flat" role="tablist" aria-label="任务状态">
+            <button class="tabs__item is-current" type="button" role="tab" data-job-filter="all" aria-selected="true">全部</button>
+            <button class="tabs__item" type="button" role="tab" data-job-filter="running" aria-selected="false">进行中</button>
+            <button class="tabs__item" type="button" role="tab" data-job-filter="completed" aria-selected="false">已完成</button>
+            <button class="tabs__item" type="button" role="tab" data-job-filter="incomplete" aria-selected="false">未完成</button>
+          </div>
+          <span class="jobs-filter__total" id="jobs-total" role="status" aria-live="polite">共 0 项</span>
+        </div>
+        <div class="jobs-list" id="jobs-list" role="list"></div>
+      </section>
+
+      <!-- 知识库浏览与分组管理 -->
+      <section class="screen" data-screen="library" hidden>
+        <div id="lib-browser-view">
+          <div class="lib-head">
+            <h1 class="screen__title">知识库</h1>
+            <label class="search search--wide"><svg class="ico"><use href="#i-search"/></svg><input type="search" id="lib-search" placeholder="搜索内容" aria-label="搜索内容" /></label>
+            <div class="lib-head__tools">
+              <button class="link-btn" type="button" data-act="lib-filter" id="lib-filter-btn"><svg class="ico"><use href="#i-filter"/></svg>筛选</button>
+              <button class="link-btn" type="button" data-act="lib-trash"><svg class="ico"><use href="#i-trash"/></svg>回收站</button>
+              <button class="link-btn" type="button" data-act="lib-refresh" id="lib-refresh-btn"><svg class="ico"><use href="#i-refresh"/></svg>刷新</button>
+              <button class="link-btn" type="button" data-act="folder-backfill"><svg class="ico"><use href="#i-file"/></svg>补齐缺失简介</button>
+              <button class="btn btn--primary" type="button" data-act="lib-edit" id="lib-edit-btn">编辑</button>
+              <button class="link-btn link-btn--danger" type="button" data-act="lib-delete" id="lib-delete-btn" hidden>删除</button>
+            </div>
+          </div>
+          <div class="lib-filter-panel" id="lib-filter-panel" hidden></div>
+          <div class="lib-divider"></div>
+          <div class="lib-group-toolbar" id="lib-group-toolbar" aria-label="知识库分组筛选">
+            <button class="lib-group-total" type="button" data-act="lib-total" aria-pressed="true">
+              <svg class="ico lib-group-icon"><use href="#i-library-shelf"/></svg><span>总库</span>
+            </button>
+            <div class="lib-group-filters">
+              <div class="lib-group-filter" data-group-filter="folder">
+                <button class="lib-group-filter__trigger" type="button" data-act="lib-group-menu-toggle" data-kind="folder" aria-expanded="false" aria-controls="lib-folder-filter-menu">
+                  <svg class="ico lib-group-icon"><use href="#i-folder-round"/></svg><span id="lib-folder-filter-label">收藏夹</span><svg class="ico lib-group-filter__chevron"><use href="#i-down"/></svg>
+                </button>
+                <div class="lib-group-filter__menu" id="lib-folder-filter-menu" role="group" aria-label="收藏夹筛选" hidden></div>
+              </div>
+              <div class="lib-group-filter" data-group-filter="tag">
+                <button class="lib-group-filter__trigger" type="button" data-act="lib-group-menu-toggle" data-kind="tag" aria-expanded="false" aria-controls="lib-tag-filter-menu">
+                  <svg class="ico lib-group-icon"><use href="#i-tag-round"/></svg><span id="lib-tag-filter-label">标签</span><svg class="ico lib-group-filter__chevron"><use href="#i-down"/></svg>
+                </button>
+                <div class="lib-group-filter__menu" id="lib-tag-filter-menu" role="group" aria-label="标签筛选" hidden></div>
+              </div>
+              <button class="lib-group-filter__trigger" type="button" data-act="lib-filter-value" data-dim="platform" data-value="xiaohongshu" aria-pressed="false" aria-label="小红书" data-tip="小红书"><img class="lib-platform-icon" src="/ui/platform-icons/xiaohongshu.ico" alt="" /></button>
+              <button class="lib-group-filter__trigger" type="button" data-act="lib-filter-value" data-dim="platform" data-value="bilibili" aria-pressed="false" aria-label="B站" data-tip="B站"><img class="lib-platform-icon" src="/ui/platform-icons/bilibili.ico" alt="" /></button>
+            </div>
+            <div class="lib-group-toolbar__tools">
+              <button class="link-btn" type="button" data-act="lib-filter-clear-all" id="lib-filter-clear-all" hidden>清除筛选</button>
+              <button class="link-btn" type="button" data-act="lib-organize" id="lib-organize-btn"><svg class="ico"><use href="#i-dots"/></svg>整理内容</button>
+              <button class="link-btn" type="button" data-act="lib-groups-open">管理分组</button>
+            </div>
+          </div>
+          <div class="lib-mode-bar" id="lib-mode-bar" hidden></div>
+          <span class="visually-hidden" id="lib-count" role="status" aria-live="polite">共 0 条</span>
+          <div class="lib-grid" id="lib-grid" role="list"></div>
+        </div>
+        <div class="lib-groups-view" id="lib-groups-view" hidden>
+          <header class="lib-groups-view__head">
+            <button class="link-btn" type="button" data-act="lib-groups-back"><svg class="ico"><use href="#i-back"/></svg>返回知识库</button>
+            <h1 class="screen__title">管理分组</h1>
+          </header>
+          <div class="lib-groups-view__lists">
+            <section class="lib-group-list" aria-labelledby="lib-folders-title">
+              <header class="lib-group-list__head">
+                <h2 id="lib-folders-title"><svg class="ico lib-group-icon" aria-hidden="true"><use href="#i-folder-round"/></svg>收藏夹</h2>
+                <button class="link-btn" type="button" data-act="lib-group-create" data-kind="folder"><svg class="ico"><use href="#i-plus"/></svg>新建收藏夹</button>
+              </header>
+              <div class="lib-group-list__items" id="lib-folder-list"></div>
+            </section>
+            <section class="lib-group-list" aria-labelledby="lib-tags-title">
+              <header class="lib-group-list__head">
+                <h2 id="lib-tags-title"><svg class="ico lib-group-icon" aria-hidden="true"><use href="#i-tag-round"/></svg>标签</h2>
+                <button class="link-btn" type="button" data-act="lib-group-create" data-kind="tag"><svg class="ico"><use href="#i-plus"/></svg>新建标签</button>
+              </header>
+              <div class="lib-group-list__items" id="lib-tag-list"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="trash" hidden>
+        <div class="lib-head">
+          <h1 class="screen__title">回收站</h1>
+          <div class="lib-head__tools">
+            <button class="link-btn" type="button" data-act="trash-back">返回</button>
+          </div>
+        </div>
+        <div class="lib-divider"></div>
+        <div class="trash-list" id="trash-list" role="list"></div>
+      </section>
+
+      <!-- 图三/四：AI 问答（收起两栏 / 展开三栏，两条可拖分隔线） -->
+      <section class="screen screen--ask" data-screen="ask" hidden>
+        <div class="ask-columns" id="ask-columns" data-ask-state="collapsed">
+          <aside class="ask-sessions" aria-label="会话">
+            <h1 class="ask-sessions__brand">AI 问答</h1>
+            <h2 class="pane__title">会话</h2>
+            <button class="btn btn--outline btn--wide" type="button" data-act="ask-new"><svg class="ico"><use href="#i-plus"/></svg> 新会话</button>
+            <div class="ask-sessions__list" id="ask-sessions" role="list"></div>
+          </aside>
+
+          <div class="ask-resizer" data-resizer="sessions" role="separator" aria-orientation="vertical" aria-label="调整会话栏宽度"></div>
+
+          <section class="ask-talk" aria-label="对话">
+            <div class="ask-talk__head" id="ask-talk-head">今天 · 新会话</div>
+            <button class="ask-expand" type="button" data-act="ask-expand" data-tip="展开问答设置" aria-label="展开问答设置"><svg class="ico"><use href="#i-chev-right"/></svg></button>
+            <div class="ask-talk__stream" id="ask-stream" aria-live="polite"></div>
+            <div class="ask-composer">
+              <textarea class="input input--composer" id="ask-input" rows="2" placeholder="输入问题"></textarea>
+              <div class="ask-composer__actions">
+                <button class="btn btn--quiet" type="button" data-act="ask-clear">清空草稿</button>
+                <button class="btn btn--quiet" type="button" data-act="ask-stop" hidden>停止生成</button>
+                <button class="btn btn--quiet" type="button" data-act="ask-continue" hidden>继续生成</button>
+                <button class="btn btn--primary" type="button" data-act="ask-send">发送</button>
+              </div>
+            </div>
+            <span class="visually-hidden" id="ask-scope-note" role="status"></span>
+          </section>
+
+          <div class="ask-resizer" data-resizer="settings" role="separator" aria-orientation="vertical" aria-label="调整设置栏宽度"></div>
+
+          <aside class="ask-scope" aria-label="问答设置">
+            <div class="ask-scope__head">
+              <h2 class="pane__title">问答设置</h2>
+              <button class="ask-scope__fold" type="button" data-act="ask-collapse" data-tip="折叠问答设置" aria-label="折叠问答设置"><svg class="ico"><use href="#i-down"/></svg></button>
+            </div>
+            <div class="segmented" id="ask-scope-kind" role="group" aria-label="范围类型">
+              <button class="segmented__item is-current" type="button" data-scope-kind="all">全库</button>
+              <button class="segmented__item" type="button" data-scope-kind="tag">标签</button>
+              <button class="segmented__item" type="button" data-scope-kind="folder">收藏夹</button>
+            </div>
+            <div class="ask-scope__label ask-scope__label--row">
+              <span id="ask-scope-title">全部内容</span>
+              <button class="link-btn" type="button" data-act="scope-select-all">全选</button>
+            </div>
+            <div class="scope-list" id="ask-scope-list"></div>
+            <div class="ask-scope__foot">
+              <span class="ask-scope__summary" id="ask-scope-summary" role="status">已选 0 条 · 共 0 条</span>
+              <button class="btn btn--outline btn--wide" type="button" data-act="ask-apply">应用范围</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- 第 5 个入口：设置（保留分区真功能） -->
+      <section class="screen screen--settings" data-screen="settings" hidden>
+        <header class="screen__head">
+          <h1 class="screen__title">设置</h1>
+          <div class="screen__actions"><button class="link-btn link-btn--primary" type="button" data-act="settings-back">‹ 返回</button></div>
+        </header>
+        <div class="set-columns">
+          <nav class="set-nav card" aria-label="设置分区">
+            <button class="set-nav__item is-current" type="button" data-section="platform">平台</button>
+            <button class="set-nav__item" type="button" data-section="asr">ASR</button>
+            <button class="set-nav__item" type="button" data-section="model">模型</button>
+            <button class="set-nav__item" type="button" data-section="storage">存储</button>
+          </nav>
+          <section class="card set-pane" id="set-pane" aria-live="polite"></section>
+        </div>
+      </section>
+
+      <!-- 图六：内容详情（四栏：rail + 内容快捷栏 + 正文 + 目录栏） -->
+      <section class="screen screen--doc" data-screen="content" hidden>
+        <div class="doc-columns">
+          <aside class="doc-quick" aria-label="内容快捷选择">
+            <div class="doc-quick__head">
+              <h1 class="doc-quick__title">内容</h1>
+              <button class="icon-btn" type="button" data-act="doc-collapse" data-tip="收起快捷栏" aria-label="收起快捷栏"><svg class="ico"><use href="#i-menu"/></svg></button>
+            </div>
+            <label class="search search--soft"><svg class="ico"><use href="#i-search"/></svg><input type="search" id="doc-quick-search" placeholder="搜索内容" aria-label="搜索内容" /></label>
+            <div class="doc-quick__list" id="doc-quick-list" role="list"></div>
+          </aside>
+
+          <div class="doc-body">
+            <div class="doc-toolbar">
+              <div class="doc-toolbar__left">
+                <button class="icon-btn" type="button" data-act="doc-restore" id="doc-restore-btn" data-tip="展开快捷栏" aria-label="展开快捷栏" hidden><svg class="ico"><use href="#i-menu"/></svg></button>
+                <button class="version" type="button" data-act="doc-version">v1 <svg class="ico"><use href="#i-down"/></svg></button>
+                <span class="doc-toolbar__time" id="doc-time">—</span>
+                <button class="link-btn" type="button" data-act="doc-refresh" id="doc-refresh-btn" aria-label="刷新笔记">刷新笔记</button>
+              </div>
+              <div class="doc-toolbar__right">
+                <button class="icon-btn" type="button" data-act="outline-restore" id="outline-restore-btn" data-tip="展开目录" aria-label="展开目录" hidden><svg class="ico"><use href="#i-menu"/></svg></button>
+                <button class="icon-btn" type="button" data-act="doc-copy" data-tip="复制正文" aria-label="复制正文"><svg class="ico"><use href="#i-copy"/></svg></button>
+                <button class="icon-btn" id="doc-export-btn" type="button" data-act="doc-export" data-tip="下载" aria-label="下载" aria-expanded="false"><svg class="ico"><use href="#i-export"/></svg></button>
+                <button class="icon-btn" type="button" data-act="doc-delete" data-tip="删除" aria-label="删除"><svg class="ico"><use href="#i-trash"/></svg></button>
+                <button class="icon-btn" type="button" data-act="doc-more" data-tip="更多" aria-label="更多" aria-expanded="false"><svg class="ico"><use href="#i-more"/></svg></button>
+              </div>
+            </div>
+            <div class="doc-scroll" id="doc-scroll">
+              <h1 class="doc-title" id="doc-title">—</h1>
+              <div class="chips" id="doc-tags"></div>
+              <h2 class="doc-section-label">内容总结</h2>
+              <p class="doc-intro" id="doc-intro">—</p>
+              <div class="doc-tag-editor" id="doc-tag-editor" hidden></div>
+              <article class="doc-article" id="doc-article"></article>
+            </div>
+            <div class="doc-pager">
+              <button class="link-btn" type="button" data-act="doc-prev" id="doc-prev">‹ 上一条笔记</button>
+              <button class="link-btn" type="button" data-act="doc-back-bottom" id="doc-back-bottom">返回知识库</button>
+              <button class="link-btn" type="button" data-act="doc-next" id="doc-next">下一条笔记 ›</button>
+            </div>
+          </div>
+
+          <aside class="doc-outline" aria-label="目录">
+            <div class="doc-outline__head"><h2 class="pane__title">目录</h2><button class="icon-btn" type="button" data-act="outline-collapse" data-tip="收起目录" aria-label="收起目录"><svg class="ico"><use href="#i-menu"/></svg></button></div>
+            <nav class="doc-outline__list" id="doc-outline" aria-label="章节目录"></nav>
+            <button class="source-card" id="doc-source" type="button" data-act="doc-open-source" hidden>
+              <span class="source-card__body">
+                <span class="source-card__title" id="doc-source-title">—<svg class="ico"><use href="#i-external"/></svg></span>
+                <span class="source-card__meta"><span class="source-card__badge" id="doc-source-badge"></span><span id="doc-source-time"></span></span>
+              </span>
+            </button>
+            <button class="regenerate" type="button" data-act="doc-regenerate"><svg class="ico"><use href="#i-refresh"/></svg> 重新生成</button>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Tooltip 浮层 -->
+  <div class="tip" id="tip" role="tooltip" hidden></div>
+
+  <div class="confirm-dialog" id="confirm-dialog" hidden>
+    <div class="confirm-dialog__backdrop" data-act="confirm-cancel"></div>
+    <section class="confirm-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-message">
+      <p class="confirm-dialog__message" id="confirm-dialog-message"></p>
+      <label class="confirm-dialog__input-wrap field" id="confirm-dialog-input-wrap" hidden>
+        <span class="field__label" id="confirm-dialog-input-label"></span>
+        <input class="input" id="confirm-dialog-input" type="text" autocomplete="off" />
+      </label>
+      <div class="confirm-dialog__actions">
+        <button class="btn btn--quiet" type="button" data-act="confirm-cancel">取消</button>
+        <button class="btn btn--primary" type="button" id="confirm-dialog-submit" data-act="confirm-submit">确定</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 11-22 R5：重复任务分流双主动作弹窗。清单用 textContent 逐条填充，按钮不用「取消」。 -->
+  <div class="confirm-dialog" id="triage-dialog" hidden>
+    <div class="confirm-dialog__backdrop" data-act="triage-dismiss"></div>
+    <section class="confirm-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="triage-dialog-summary">
+      <p class="confirm-dialog__message" id="triage-dialog-summary"></p>
+      <div class="triage-dialog__list" id="triage-dialog-list"></div>
+      <div class="confirm-dialog__actions">
+        <button class="btn btn--quiet" type="button" id="triage-discard" data-act="triage-discard">舍弃</button>
+        <button class="btn btn--primary" type="button" id="triage-import" data-act="triage-import">继续导入</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 导出浮层：4 格式 × 3 位置 -->
+  <div class="sheet" id="export-sheet" role="dialog" aria-label="导出" aria-modal="false" hidden>
+    <div class="sheet__head"><h2 class="sheet__title">导出</h2><button class="icon-btn icon-btn--sm" type="button" data-act="export-close" aria-label="关闭"><svg class="ico"><use href="#i-close"/></svg></button></div>
+    <div class="sheet__group">
+      <h3 class="sheet__label">导出到</h3>
+      <label class="radio"><input type="radio" name="export-where" value="archive" checked /><span>归档目录</span></label>
+      <label class="radio"><input type="radio" name="export-where" value="download" /><span>下载文件夹</span></label>
+      <label class="radio"><input type="radio" name="export-where" value="custom" /><span>自定义位置…</span></label>
+      <div class="sheet__path" id="export-path-row"><span id="export-path">—</span><button class="btn btn--mini" type="button" data-act="export-change">更改…</button></div>
+    </div>
+    <div class="sheet__group">
+      <h3 class="sheet__label">格式</h3>
+      <div class="sheet__formats">
+        <label class="radio"><input type="radio" name="export-format" value="markdown" checked /><span>Markdown</span></label>
+        <label class="radio"><input type="radio" name="export-format" value="pdf" /><span>PDF</span></label>
+        <label class="radio"><input type="radio" name="export-format" value="word" /><span>Word</span></label>
+        <label class="radio"><input type="radio" name="export-format" value="text" /><span>纯文本</span></label>
+      </div>
+    </div>
+    <div class="sheet__foot"><button class="btn btn--quiet" type="button" data-act="export-close">取消</button><button class="btn btn--primary" type="button" data-act="export-submit">导出</button></div>
+  </div>
+
+  <div class="restyle" id="restyle-sheet" hidden>
+    <div class="restyle__backdrop" data-act="restyle-close"></div>
+    <section class="restyle__dialog" role="dialog" aria-modal="true" aria-label="重新总结">
+      <h2 class="restyle__title">重新总结</h2>
+      <div class="field">
+        <span class="field__label">表达风格</span>
+        <span class="select-wrap"><select class="input" id="restyle-style"><option value="general">通用</option><option value="course_notes">课程笔记</option><option value="academic">学术</option><option value="tutorial">教程</option><option value="sharing">分享</option><option value="task_oriented">任务导向</option><option value="business">商业风格</option><option value="meeting_minutes">会议纪要</option></select><svg class="ico"><use href="#i-down"/></svg></span>
+      </div>
+      <div class="field">
+        <span class="field__label">总结强度</span>
+        <span class="select-wrap"><select class="input" id="restyle-strength"><option value="quick">简要</option><option value="standard" selected>标准</option><option value="deep">详细</option></select><svg class="ico"><use href="#i-down"/></svg></span>
+      </div>
+      <div class="field">
+        <span class="field__label">补充要求</span>
+        <textarea class="input input--area" id="restyle-extra-instruction" rows="2"></textarea>
+      </div>
+      <p class="restyle__error" id="restyle-error" role="alert" hidden></p>
+      <div class="restyle__foot">
+        <button class="btn btn--quiet" type="button" data-act="restyle-close">取消</button>
+        <button class="btn btn--primary" id="restyle-submit" type="button" data-act="restyle-submit">提交</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="account-import-modal" id="account-import-modal" hidden>
+    <div class="account-import-modal__backdrop" data-act="account-import-close"></div>
+    <section class="account-import-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="account-import-title">
+      <header class="account-import-modal__head">
+        <h2 class="account-import-modal__title" id="account-import-title"></h2>
+        <button class="icon-btn icon-btn--sm" type="button" data-act="account-import-close" aria-label="关闭"><svg class="ico"><use href="#i-close"/></svg></button>
+      </header>
+      <div class="account-import-modal__tools" id="account-import-tools" hidden>
+        <button class="link-btn" id="account-import-back-folders" type="button" data-act="account-import-back-folders" hidden>返回列表</button>
+        <label class="account-import-modal__filter"><input type="checkbox" data-import-new-only />仅看未导入</label>
+        <button class="link-btn" type="button" data-act="account-import-select-visible">全选</button>
+      </div>
+      <div class="account-import-modal__body" id="account-import-body"></div>
+      <footer class="account-import-modal__foot">
+        <span class="account-import-modal__count" id="account-import-count"></span>
+        <div class="account-import-modal__actions">
+          <button class="btn btn--quiet" type="button" data-act="account-import-close">取消</button>
+          <button class="btn btn--primary" id="account-import-submit" type="button" data-act="account-import-submit" disabled>导入所选</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="popmenu" id="popmenu" role="menu" hidden></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

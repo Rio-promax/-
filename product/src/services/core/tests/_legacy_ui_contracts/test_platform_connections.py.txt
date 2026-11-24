@@ -1,0 +1,416 @@
+import re
+from pathlib import Path
+
+import pytest
+
+from app.adapters.sources.link import LinkImportError
+from app.api import main as api_main
+from app.api.main import create_app
+from app.platforms.connections import (
+    CHECKING,
+    CONNECTED,
+    EXPIRED,
+    REAUTH_REQUIRED,
+    RISK_CONTROLLED,
+    TEMPORARY_ERROR,
+)
+from fastapi.testclient import TestClient
+
+
+def test_frontend_task_and_library_renderers_have_one_definition() -> None:
+    script = (Path(__file__).parents[1] / "app" / "ui" / "app.js").read_text(encoding="utf-8")
+    for name in ("renderTaskList", "renderHistoryEntries"):
+        assert len(re.findall(rf"\bfunction\s+{name}\s*\(", script)) == 1
+
+
+def test_platform_connection_catalog_is_explicit_about_support() -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+
+    response = client.get("/api/v1/platform-connections")
+
+    assert response.status_code == 200
+    connections = {item["platform"]: item for item in response.json()["connections"]}
+    assert {"bilibili", "xiaohongshu", "zhihu", "wechat", "douyin"} <= connections.keys()
+    assert connections["bilibili"]["status"] == "NOT_CONNECTED"
+    assert connections["bilibili"]["supported"] is True
+    assert connections["xiaohongshu"]["status"] == "NOT_CONNECTED"
+    assert connections["xiaohongshu"]["supported"] is True
+    assert connections["zhihu"]["status"] == "NOT_CONNECTED"
+    assert connections["zhihu"]["supported"] is True
+    assert connections["douyin"]["supported"] is False
+    assert connections["wechat"]["status"] == "UNSUPPORTED"
+    assert connections["wechat"]["supported"] is False
+    assert connections["wechat"]["login_url"] == "https://mp.weixin.qq.com/"
+
+
+def test_bilibili_qr_login_saves_product_session_and_can_disconnect(monkeypatch) -> None:
+    from app.adapters.sources.bilibili import BilibiliQrCode, BilibiliQrPoll
+
+    client = TestClient(create_app("sqlite:///:memory:"))
+    monkeypatch.setattr(
+        api_main,
+        "generate_bilibili_qr_code",
+        lambda: BilibiliQrCode("qr-key", "https://passport.bilibili.com/qr", "<svg/>", 180),
+    )
+    monkeypatch.setattr(
+        api_main,
+        "poll_bilibili_qr_code",
+        lambda key: BilibiliQrPoll(
+            "CONNECTED",
+            "B站二维码登录成功，正在验证登录会话",
+            cookie="SESSDATA=abc; bili_jct=csrf",
+            refresh_token="refresh-token",
+        ),
+    )
+    monkeypatch.setattr(
+        api_main,
+        "probe_platform",
+        lambda platform, session_cookie: ("CONNECTED", "测试账号", "B站登录会话可用"),
+    )
+    saved = {}
+    monkeypatch.setattr(
+        client.app.state.store,
+        "save_bilibili_session",
+        lambda cookie, refresh_token: saved.update(cookie=cookie, refresh_token=refresh_token),
+    )
+    monkeypatch.setattr(
+        client.app.state.store,
+        "get_bilibili_session_cookie",
+        lambda: saved.get("cookie"),
+    )
+
+    legacy = client.post(
+        "/api/v1/platform-connections/bilibili/connect",
+        json={"browser": "chrome", "browser_profile": "Profile 1"},
+    )
+    assert legacy.status_code == 409
+
+    generated = client.post("/api/v1/platform-connections/bilibili/qrcode")
+    assert generated.status_code == 200
+    assert generated.json()["qrcode_key"] == "qr-key"
+    assert generated.json()["qrcode_svg"] == "<svg/>"
+
+    connected = client.post(
+        "/api/v1/platform-connections/bilibili/qrcode/poll",
+        json={"qrcode_key": "qr-key"},
+    )
+    assert connected.status_code == 200
+    payload = connected.json()
+    assert payload["status"] == "CONNECTED"
+    assert payload["account_label"] == "测试账号"
+    assert payload["auth_type"] == "qrcode_session"
+    assert payload["browser"] is None
+    assert saved == {"cookie": "SESSDATA=abc; bili_jct=csrf", "refresh_token": "refresh-token"}
+    assert client.get("/api/v1/settings").json()["bilibili_connected"] is True
+
+    disconnected = client.delete("/api/v1/platform-connections/bilibili")
+    assert disconnected.status_code == 204
+    assert client.get("/api/v1/settings").json()["bilibili_connected"] is False
+    assert client.get("/api/v1/platform-connections").json()["connections"][0]["status"] == "NOT_CONNECTED"
+
+
+def test_bilibili_qr_progress_is_ephemeral_and_does_not_persist_checking(monkeypatch) -> None:
+    from app.adapters.sources.bilibili import BilibiliQrCode, BilibiliQrPoll
+
+    client = TestClient(create_app("sqlite:///:memory:"))
+    monkeypatch.setattr(
+        api_main,
+        "generate_bilibili_qr_code",
+        lambda: BilibiliQrCode("qr-progress", "https://passport.bilibili.test/qr", "<svg/>", 180),
+    )
+    results = iter(
+        [
+            BilibiliQrPoll("WAITING", "等待使用 B站 App 扫码"),
+            BilibiliQrPoll("SCANNED", "二维码已扫码，请在 B站 App 中确认登录"),
+        ]
+    )
+    monkeypatch.setattr(api_main, "poll_bilibili_qr_code", lambda key: next(results))
+
+    assert client.post("/api/v1/platform-connections/bilibili/qrcode").status_code == 200
+    for expected_message in ("等待使用 B站 App 扫码", "二维码已扫码，请在 B站 App 中确认登录"):
+        response = client.post(
+            "/api/v1/platform-connections/bilibili/qrcode/poll",
+            json={"qrcode_key": "qr-progress"},
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == CHECKING
+        assert response.json()["message"] == expected_message
+        assert client.app.state.store.get_platform_connection("bilibili") is None
+
+
+def test_bilibili_qr_cancel_rejects_a_late_connected_result(monkeypatch) -> None:
+    from app.adapters.sources.bilibili import BilibiliQrCode, BilibiliQrPoll
+
+    client = TestClient(create_app("sqlite:///:memory:"))
+    monkeypatch.setattr(
+        api_main,
+        "generate_bilibili_qr_code",
+        lambda: BilibiliQrCode("qr-cancel", "https://passport.bilibili.test/qr", "<svg/>", 180),
+    )
+    saved: list[tuple[str, str | None]] = []
+
+    def late_result(_key: str) -> BilibiliQrPoll:
+        client.app.state.bilibili_qr_attempts.clear()
+        return BilibiliQrPoll(
+            "CONNECTED",
+            "B站二维码登录成功，正在验证登录会话",
+            cookie="opaque-cookie",
+            refresh_token="opaque-refresh",
+        )
+
+    monkeypatch.setattr(api_main, "poll_bilibili_qr_code", late_result)
+    monkeypatch.setattr(
+        client.app.state.store,
+        "save_bilibili_session",
+        lambda cookie, refresh_token: saved.append((cookie, refresh_token)),
+    )
+
+    assert client.post("/api/v1/platform-connections/bilibili/qrcode").status_code == 200
+    response = client.post(
+        "/api/v1/platform-connections/bilibili/qrcode/poll",
+        json={"qrcode_key": "qr-cancel"},
+    )
+    assert response.status_code == 409
+    assert saved == []
+    assert client.app.state.store.get_platform_connection("bilibili") is None
+
+
+def test_bilibili_qr_cancelled_during_probe_writes_nothing(monkeypatch) -> None:
+    from app.adapters.sources.bilibili import BilibiliQrCode, BilibiliQrPoll
+
+    client = TestClient(create_app("sqlite:///:memory:"))
+    monkeypatch.setattr(
+        api_main,
+        "generate_bilibili_qr_code",
+        lambda: BilibiliQrCode("qr-probe-cancel", "https://passport.bilibili.test/qr", "<svg/>", 180),
+    )
+    monkeypatch.setattr(
+        api_main,
+        "poll_bilibili_qr_code",
+        lambda key: BilibiliQrPoll(
+            "CONNECTED",
+            "B站二维码登录成功，正在验证登录会话",
+            cookie="opaque-cookie",
+            refresh_token="opaque-refresh",
+        ),
+    )
+    saved: list[tuple[str, str | None]] = []
+    monkeypatch.setattr(
+        client.app.state.store,
+        "save_bilibili_session",
+        lambda cookie, refresh_token: saved.append((cookie, refresh_token)),
+    )
+
+    def cancel_during_probe(_platform: str, _session_cookie: str | None):
+        client.app.state.bilibili_qr_attempts.clear()
+        return CONNECTED, "测试账号", "B站登录会话可用"
+
+    monkeypatch.setattr(api_main, "probe_platform", cancel_during_probe)
+
+    assert client.post("/api/v1/platform-connections/bilibili/qrcode").status_code == 200
+    response = client.post(
+        "/api/v1/platform-connections/bilibili/qrcode/poll",
+        json={"qrcode_key": "qr-probe-cancel"},
+    )
+
+    assert response.status_code == 409
+    assert saved == []
+    assert client.app.state.store.get_platform_connection("bilibili") is None
+
+
+def test_bilibili_qr_natural_expiry_is_terminal(monkeypatch) -> None:
+    from app.adapters.sources.bilibili import BilibiliQrCode
+
+    client = TestClient(create_app("sqlite:///:memory:"))
+    monkeypatch.setattr(
+        api_main,
+        "generate_bilibili_qr_code",
+        lambda: BilibiliQrCode("qr-expired", "https://passport.bilibili.test/qr", "<svg/>", 180),
+    )
+    assert client.post("/api/v1/platform-connections/bilibili/qrcode").status_code == 200
+
+    monkeypatch.setattr(api_main, "monotonic", lambda: 10_000_000.0)
+    monkeypatch.setattr(
+        api_main,
+        "poll_bilibili_qr_code",
+        lambda _key: pytest.fail("expired QR should not call the upstream poller"),
+    )
+
+    response = client.post(
+        "/api/v1/platform-connections/bilibili/qrcode/poll",
+        json={"qrcode_key": "qr-expired"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == EXPIRED
+    assert "过期" in response.json()["message"]
+    assert client.app.state.store.get_platform_connection("bilibili") is None
+
+
+def test_bilibili_error_sync_uses_structured_status_only() -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+    store = client.app.state.store
+    store.save_platform_connection(
+        platform="bilibili",
+        status=CONNECTED,
+        auth_type="qrcode_session",
+        account_label="stable-account",
+        login_url="https://passport.bilibili.com/login",
+        message="稳定连接",
+    )
+    source_url = "https://www.bilibili.com/video/BV1example"
+
+    api_main._sync_bilibili_error_status(
+        store,
+        source_url,
+        LinkImportError("接口返回 -101，但未分类"),
+    )
+    assert store.get_platform_connection("bilibili").status == CONNECTED
+
+    api_main._sync_bilibili_error_status(
+        store,
+        source_url,
+        LinkImportError("接口拒绝", connection_status=RISK_CONTROLLED),
+    )
+    assert store.get_platform_connection("bilibili").status == RISK_CONTROLLED
+
+    api_main._sync_bilibili_error_status(
+        store,
+        source_url,
+        LinkImportError("网络暂时不可用"),
+    )
+    assert store.get_platform_connection("bilibili").status == RISK_CONTROLLED
+
+    api_main._sync_bilibili_error_status(
+        store,
+        source_url,
+        LinkImportError("会话失效", connection_status=REAUTH_REQUIRED),
+    )
+    assert store.get_platform_connection("bilibili").status == REAUTH_REQUIRED
+
+
+def test_legacy_bilibili_checking_is_normalized_without_network(monkeypatch) -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+    client.app.state.store.save_platform_connection(
+        platform="bilibili",
+        status=CHECKING,
+        auth_type="qrcode_session",
+        login_url="https://passport.bilibili.com/login",
+        message="旧扫码状态",
+    )
+    monkeypatch.setattr(client.app.state.store, "get_bilibili_session_cookie", lambda: "opaque-cookie")
+
+    response = client.get("/api/v1/platform-connections")
+
+    assert response.status_code == 200
+    bilibili = next(item for item in response.json()["connections"] if item["platform"] == "bilibili")
+    assert bilibili["status"] == CONNECTED
+    assert client.app.state.store.get_platform_connection("bilibili").status == CONNECTED
+
+
+def test_temporary_bilibili_probe_keeps_the_last_stable_status(monkeypatch) -> None:
+    from app.adapters.sources.bilibili import BilibiliQrCode, BilibiliQrPoll
+
+    client = TestClient(create_app("sqlite:///:memory:"))
+    client.app.state.store.save_platform_connection(
+        platform="bilibili",
+        status=CONNECTED,
+        auth_type="qrcode_session",
+        account_label="stable-account",
+        login_url="https://passport.bilibili.com/login",
+        message="稳定连接",
+    )
+    monkeypatch.setattr(
+        api_main,
+        "generate_bilibili_qr_code",
+        lambda: BilibiliQrCode("qr-temporary", "https://passport.bilibili.test/qr", "<svg/>", 180),
+    )
+    monkeypatch.setattr(
+        api_main,
+        "poll_bilibili_qr_code",
+        lambda key: BilibiliQrPoll(
+            "CONNECTED",
+            "B站二维码登录成功，正在验证登录会话",
+            cookie="opaque-cookie",
+            refresh_token=None,
+        ),
+    )
+    monkeypatch.setattr(client.app.state.store, "save_bilibili_session", lambda cookie, refresh_token: None)
+    monkeypatch.setattr(
+        api_main,
+        "probe_platform",
+        lambda platform, session_cookie: (TEMPORARY_ERROR, None, "暂时无法检查"),
+    )
+
+    assert client.post("/api/v1/platform-connections/bilibili/qrcode").status_code == 200
+    response = client.post(
+        "/api/v1/platform-connections/bilibili/qrcode/poll",
+        json={"qrcode_key": "qr-temporary"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == CONNECTED
+    assert "已保存" in response.json()["message"]
+    stable = client.app.state.store.get_platform_connection("bilibili")
+    assert stable.status == CONNECTED
+    assert "已保存" in stable.message
+
+
+def test_bilibili_session_storage_does_not_partially_replace_a_previous_session(monkeypatch) -> None:
+    from app.db import store as store_module
+    from app.db.store import SQLiteStore
+    from app.platforms.secrets import SecretStorageError
+
+    store = SQLiteStore("sqlite:///:memory:")
+    store.set_setting("bilibili_session_cookie", "dpapi:old-cookie")
+    store.set_setting("bilibili_refresh_token", "dpapi:old-refresh")
+
+    def protect(value: str, *, purpose: str = "本地凭证") -> str:
+        if value == "new-cookie":
+            return "dpapi:new-cookie"
+        raise SecretStorageError("credential protection blocked")
+
+    monkeypatch.setattr(store_module, "protect_secret", protect)
+
+    with pytest.raises(SecretStorageError):
+        store.save_bilibili_session("new-cookie", "new-refresh")
+
+    assert store.get_setting("bilibili_session_cookie") == "dpapi:old-cookie"
+    assert store.get_setting("bilibili_refresh_token") == "dpapi:old-refresh"
+
+
+def test_unsupported_platform_is_not_marked_connected() -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+
+    response = client.post(
+        "/api/v1/platform-connections/douyin/connect",
+        json={"browser": "chrome"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "UNSUPPORTED"
+    # P4 / 复审 R-B2：文案不再宣称"已提供登录入口"，统一为能力说明。
+    assert "已提供登录入口" not in response.json()["message"]
+    assert "本地文件" in response.json()["message"]
+    # P4 硬约束：非连接型平台不写库。
+    assert client.app.state.store.get_platform_connection("douyin") is None
+
+
+def test_invalid_bilibili_connection_is_rejected_before_import() -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+    client.app.state.store.save_platform_connection(
+        platform="bilibili",
+        status="REAUTH_REQUIRED",
+        auth_type="qrcode_session",
+        browser="chrome",
+        login_url="https://passport.bilibili.com/login",
+        message="请重新登录 B站",
+    )
+
+    response = client.post(
+        "/api/v1/imports/link",
+        json={"url": "https://www.bilibili.com/video/BV1example"},
+    )
+
+    assert response.status_code == 422
+    assert "登录前置检查失败" in response.json()["detail"]

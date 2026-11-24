@@ -1,0 +1,933 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>内容知识库</title>
+    <link id="ui-style" rel="stylesheet" href="data:text/css," />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到主内容</a>
+    <svg class="icon-sprite" aria-hidden="true" width="0" height="0">
+      <symbol id="icon-app" viewBox="0 0 16 16"><path fill="currentColor" d="M1 1h14v14H1zM3 3v10h10V3zM5 5h6v2H5zm0 4h6v2H5z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-intake" viewBox="0 0 16 16"><path fill="currentColor" d="M2 1h8v2H4v10h8V9h2v6H2zm7 5 2 2H5v2h6l-2 2 2 2 5-5-5-5z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-tasks" viewBox="0 0 16 16"><path fill="currentColor" d="M2 1h12v14H2zm3 3h6v2H5zm0 4h6v2H5zm0 4h4v1H5z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-library" viewBox="0 0 16 16"><path fill="currentColor" d="M1 2h4v12H1zm5 0h4v12H6zm5 0h4v12h-4zM2 4h2v2H2zm5 0h2v2H7zm5 0h2v2h-2z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-settings" viewBox="0 0 16 16"><path fill="currentColor" d="M6 1h4v2h2v2h2v4h-2v2h-2v2H6v-2H4V9H2V5h2V3h2zm1 5v4h2V6z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-plus" viewBox="0 0 16 16"><path fill="currentColor" d="M7 1h2v6h6v2H9v6H7V9H1V7h6z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-close" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3l2-2 4 4 4-4 2 2-4 4 4 4-2 2-4-4-4 4-2-2 4-4z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-chevron-left" viewBox="0 0 16 16"><path fill="currentColor" d="M10 1 4 8l6 7 2-2-4-5 4-5z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-chevron-right" viewBox="0 0 16 16"><path fill="currentColor" d="m6 1 6 7-6 7-2-2 4-5-4-5z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-check" viewBox="0 0 16 16"><path fill="currentColor" d="M1 8h3v3h3v3h2v-3h2V9h2V6h2v4h-2v2h-2v2H7v-2H4V10H1z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-warning" viewBox="0 0 16 16"><path fill="currentColor" d="M6 1h4v2h2v3h2v4h-2v3h-2v2H6v-2H4v-3H2V6h2V3h2zm1 4v4h2V5zm0 6v2h2v-2z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-error" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3l2-2 4 4 4-4 2 2-4 4 4 4-2 2-4-4-4 4-2-2 4-4z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-arrow-left" viewBox="0 0 16 16"><path fill="currentColor" d="M7 3v3h7v2H7v3l-6-4z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-arrow-up" viewBox="0 0 16 16"><path fill="currentColor" d="M7 2h2v4h3L8 1 4 6h3zM7 8h2v6H7z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-drag" viewBox="0 0 16 16"><path fill="currentColor" d="M3 2h2v2H3zm4 0h2v2H7zm4 0h2v2h-2zM3 7h2v2H3zm4 0h2v2H7zm4 0h2v2h-2zM3 12h2v2H3zm4 0h2v2H7zm4 0h2v2h-2z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-lock" viewBox="0 0 16 16"><path fill="currentColor" d="M5 1h6v5H5zM7 3v3h2V3H7zM3 6h10v9H3zM7 8v4h2V8H7zM6 12v2h4v-2H6z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-ask" viewBox="0 0 16 16"><path fill="currentColor" d="M1 2h14v10H8l-4 3v-3H1zM3 4v2h2V4zm4 0v2h2V4zm4 0v2h2V4z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-trash" viewBox="0 0 16 16"><path fill="currentColor" d="M6 1h4v1H6zM3 3h10v2H3zM4 6h8v1H4zM4 6h1v9H4zM11 6h1v9h-1zM4 14h8v1H4zM6 8h1v4H6zM9 8h1v4H9z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-status-completed" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m4.9 8.3 2.1 2.1 4-4.3" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+      <symbol id="icon-status-running" viewBox="0 0 16 16"><path d="M13.4 8a5.4 5.4 0 1 1-1.9-4.1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M13.9 1.6v3.9h-3.9" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+      <symbol id="icon-status-waiting" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.4V8l2.7 1.7" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+      <symbol id="icon-status-paused" viewBox="0 0 16 16"><rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6.2 5.6v4.8M9.8 5.6v4.8" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+      <symbol id="icon-status-failed" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="currentColor" fill-opacity=".16"/><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5 8h6" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+      <symbol id="icon-copy" viewBox="0 0 16 16"><path fill="currentColor" d="M5 1h9v2H7v9H5zM2 4h9v11H2zM4 6v7h5V6z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-download" viewBox="0 0 16 16"><path fill="currentColor" d="M7 1h2v7h3L8 13 4 8h3zM2 13h12v2H2z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-more" viewBox="0 0 16 16"><circle cx="3" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="13" cy="8" r="1.5" fill="currentColor"/></symbol>
+      <symbol id="icon-external" viewBox="0 0 16 16"><path fill="currentColor" d="M9 1h6v6h-2V4.4L7.7 9.7l-1.4-1.4L11.6 3H9zM2 4h5v2H4v7h7V9h2v5H2z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-refresh" viewBox="0 0 16 16"><path d="M13.3 6.2A5.4 5.4 0 1 0 13 10" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M11 1h4v4h-2V3z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-panel-left" viewBox="0 0 16 16"><path fill="currentColor" d="M1 2h14v12H1zM3 4v8h3V4zm5 0v8h5V4z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-folder" viewBox="0 0 16 16"><path fill="currentColor" d="M1 3h5l2 2h7v9H1zM3 6v6h10V7H6L5 6z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-tag" viewBox="0 0 16 16"><path fill="currentColor" d="M1 1h7l7 7-7 7-7-7zM4 4h2v2H4z" shape-rendering="crispEdges" /></symbol>
+      <symbol id="icon-search" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M6.8 2.4a4.4 4.4 0 1 0 0 8.8 4.4 4.4 0 0 0 0-8.8zM10.1 10.1 14 14"/></symbol>
+    </svg>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="brand">
+          <span class="brand-kicker">LOCAL KNOWLEDGE</span>
+          <strong>内容知识库</strong>
+          <button id="account-logout" class="account-logout" type="button" hidden>退出登录</button>
+        </div>
+        <nav class="navigation">
+          <button class="nav-button is-active" type="button" data-view-target="intake" aria-label="内容接入" data-tooltip="内容接入">
+            <svg class="nav-icon" aria-hidden="true"><use href="#icon-intake"></use></svg><span>内容接入</span>
+          </button>
+          <button class="nav-button" type="button" data-view-target="tasks" aria-label="任务" data-tooltip="任务">
+            <svg class="nav-icon" aria-hidden="true"><use href="#icon-tasks"></use></svg><span>任务</span>
+          </button>
+          <button class="nav-button" type="button" data-view-target="history" aria-label="知识库" data-tooltip="知识库">
+            <svg class="nav-icon" aria-hidden="true"><use href="#icon-library"></use></svg><span>知识库</span>
+          </button>
+          <button class="nav-button" id="nav-ask" type="button" data-view-target="ask" aria-label="AI 问答" data-tooltip="AI 问答">
+            <svg class="nav-icon" aria-hidden="true"><use href="#icon-ask"></use></svg><span>AI 问答</span>
+          </button>
+          <button class="nav-button" type="button" data-view-target="settings" aria-label="设置" data-tooltip="设置">
+            <svg class="nav-icon" aria-hidden="true"><use href="#icon-settings"></use></svg><span>设置</span>
+          </button>
+        </nav>
+        <button id="rail-expand-toggle" class="rail-expand-toggle" type="button" aria-label="展开侧栏名称" aria-pressed="false" data-tooltip="展开侧栏名称">
+          <svg class="icon-control" aria-hidden="true"><use href="#icon-panel-left"></use></svg>
+        </button>
+        <div class="connection" id="connection-status"><span class="connection-dot"></span> 本地服务</div>
+      </aside>
+
+      <main class="main-content" id="main-content" tabindex="-1">
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <section class="view" data-view="intake">
+          <nav id="intake-mode-tabs" class="intake-mode-tabs" role="tablist" aria-label="内容接入方式">
+          <button
+            id="intake-tab-link"
+            class="intake-mode-tab is-active"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="link-input-panel"
+            data-intake-mode="link"
+          >
+            <strong>平台链接</strong>
+          </button>
+          <button
+            id="intake-tab-local"
+            class="intake-mode-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="local-input-panel"
+            data-intake-mode="local"
+          >
+            <strong>本地识别</strong>
+          </button>
+          </nav>
+          <header class="page-header">
+            <h1>内容接入</h1>
+          </header>
+          <form id="import-form" class="form-grid">
+            <details id="input-panel" class="input-panel field-wide" open>
+              <summary>
+                <span>当前接入面板</span>
+                <span id="input-panel-status" class="input-panel-status">等待内容或链接</span>
+              </summary>
+              <div class="input-panel-fields">
+                <section
+                  id="link-input-panel"
+                  class="input-lane input-lane-link"
+                  role="tabpanel"
+                  aria-labelledby="intake-tab-link"
+                  data-intake-mode-panel="link"
+                >
+                  <label id="source-url-field" class="field">
+                    <span>平台链接</span>
+                    <textarea
+                      id="source-url"
+                      class="link-input"
+                      rows="3"
+                      placeholder="粘贴 B站、YouTube、知乎、小红书、抖音或普通网页链接；多条链接请换行或用空格分隔"
+                    ></textarea>
+                    <span id="link-hint" class="field-hint">支持单条或多条内容链接；必须点击“查询”后确认提交</span>
+                    <span id="link-count-badge" class="link-count-badge" aria-live="polite">已识别 0 条</span>
+                  </label>
+                  <div class="link-input-actions">
+                    <button class="button button-primary" id="query-links" type="button" hidden>查询</button>
+                  </div>
+                </section>
+
+                <section
+                  id="local-input-panel"
+                  class="input-lane input-lane-local"
+                  role="tabpanel"
+                  aria-labelledby="intake-tab-local"
+                  data-intake-mode-panel="local"
+                  hidden
+                >
+                  <div class="input-lane-heading">
+                    <span class="input-lane-index">LOCAL</span>
+                    <div>
+                      <h2 id="local-lane-title">本地识别</h2>
+                    </div>
+                    <span class="input-lane-state">LOCAL</span>
+                  </div>
+                  <label class="field">
+                    <span>本地文件</span>
+                    <input id="text-file" type="file" accept=".txt,.md,.markdown,.srt,.vtt" />
+                  </label>
+                  <div id="local-dropzone" class="local-dropzone" role="button" tabindex="0" aria-label="拖放本地文本文件，或点击选择文件">
+                    <span class="local-dropzone-icon" aria-hidden="true"><svg class="icon-control"><use href="#icon-plus"></use></svg></span>
+                    <span><strong>拖放文本文件</strong><small id="local-file-name">支持 TXT、MD、SRT、VTT</small></span>
+                  </div>
+                  <label class="field">
+                    <span>本地文件路径</span>
+                    <input id="source-path" type="text" placeholder="D:\\资料\\课程.srt 或 D:\\资料\\课程.mp4" />
+                  </label>
+                  <label class="field">
+                    <span>文本内容</span>
+                    <textarea id="source-text" rows="5" placeholder="也可以粘贴文章、笔记或字幕文本"></textarea>
+                  </label>
+                  <div class="link-input-actions">
+                    <button class="button button-primary" id="query-local" type="button" hidden>查询</button>
+                  </div>
+                </section>
+
+                <div class="input-common-options field-wide">
+                  <label class="field">
+                    <span>表达风格</span>
+                    <select id="summary-style">
+                      <option value="general" selected>通用</option>
+                      <option value="course_notes">课程笔记</option>
+                      <option value="academic">学术</option>
+                      <option value="tutorial">教程</option>
+                      <option value="sharing">分享</option>
+                      <option value="task_oriented">任务导向</option>
+                      <option value="business">商业风格</option>
+                      <option value="meeting_minutes">会议纪要</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>总结强度</span>
+                    <select id="summary-strength">
+                      <option value="quick">简要</option>
+                      <option value="standard" selected>标准</option>
+                      <option value="deep">详细</option>
+                    </select>
+                  </label>
+                </div>
+                <div id="source-probe" class="source-probe" hidden></div>
+                <section id="source-capabilities" class="source-capabilities" hidden aria-live="polite"></section>
+                <div id="space-preview" class="space-preview" hidden></div>
+                <div id="batch-panel" class="batch-panel" hidden></div>
+                <div id="intake-task-status" class="intake-task-status" hidden aria-live="polite"></div>
+              </div>
+            </details>
+            <div id="task-preflight" class="task-preflight field-wide" hidden aria-live="polite"></div>
+            <div class="actions field-wide">
+              <button class="button button-primary" type="submit" hidden>查询</button>
+              <button class="button" type="reset" id="clear-import">清空</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="view" data-view="tasks" hidden>
+          <header class="page-header page-header-row">
+            <div>
+              <span class="page-eyebrow">WORK QUEUE</span>
+              <h1>任务</h1>
+            </div>
+            <div class="task-header-actions actions">
+              <button class="button" id="task-batch-toggle" type="button" aria-pressed="false">编辑</button>
+              <button class="button" id="refresh-job" type="button" disabled title="暂无可刷新的任务">刷新列表</button>
+            </div>
+          </header>
+          <div class="task-filter-bar" id="task-filter-bar" role="tablist" aria-label="任务状态筛选">
+            <button class="task-filter is-active" type="button" role="tab" aria-selected="true" data-task-filter="all">全部</button>
+            <button class="task-filter" type="button" role="tab" aria-selected="false" data-task-filter="queued">等待</button>
+            <button class="task-filter" type="button" role="tab" aria-selected="false" data-task-filter="completed">已完成</button>
+            <button class="task-filter" type="button" role="tab" aria-selected="false" data-task-filter="failed">失败</button>
+            <span id="task-list-summary" class="task-list-summary">0 项任务</span>
+          </div>
+          <div id="job-focus-panel" class="panel job-focus-panel" hidden></div>
+          <div id="job-panel" class="panel task-list empty-state">暂无任务</div>
+          <div id="task-batch-toolbar" class="task-batch-toolbar" hidden>
+            <span id="task-selection-count">已选 0 项</span>
+            <button class="button button-small" id="task-batch-pause" type="button">暂停</button>
+            <button class="button button-small button-primary" id="task-batch-resume" type="button">继续</button>
+            <button class="button button-small" id="task-batch-retry" type="button">重试</button>
+            <button class="button button-small button-danger" id="task-batch-delete" type="button">删除</button>
+          </div>
+        </section>
+
+        <section class="view" data-view="history" hidden>
+          <nav id="tag-navigation" class="tag-navigation" aria-label="内容标签筛选">
+            <button id="all-tags-button" class="tag-nav-button is-active" type="button" data-tag-id="">总库</button>
+            <button id="tag-scroll-left" class="tag-scroll-button" type="button" aria-label="向左滚动标签" hidden><svg class="icon-control" aria-hidden="true"><use href="#icon-chevron-left"></use></svg></button>
+            <div id="tag-nav-list" class="tag-nav-list" role="list"></div>
+            <button id="tag-scroll-right" class="tag-scroll-button" type="button" aria-label="向右滚动标签" hidden><svg class="icon-control" aria-hidden="true"><use href="#icon-chevron-right"></use></svg></button>
+            <span id="library-count-pill" class="library-count-pill" role="status" aria-live="polite"></span>
+            <button id="create-tag-button" class="button library-action-button tag-manage-button" type="button">新建标签</button>
+            <button id="manage-tags-button" class="button library-action-button tag-manage-button" type="button" aria-pressed="false">管理</button>
+          </nav>
+          <header class="page-header page-header-row">
+            <h1 id="history-title">内容库</h1>
+            <div class="inline-controls library-controls">
+              <form id="history-search-form" class="library-search-field" role="search">
+                <input id="history-query" type="search" placeholder="搜索标题、来源、作者或内容" aria-label="搜索内容" />
+                <button class="button library-search-submit" id="search-history" type="submit" aria-label="搜索" title="搜索"><svg class="icon-control" aria-hidden="true"><use href="#icon-search"></use></svg></button>
+              </form>
+              <button class="button library-action-button" id="open-history-filters" type="button" aria-expanded="false" aria-controls="history-filter-panel">筛选</button>
+              <div id="history-filter-panel" class="history-filter-panel" hidden>
+                <select id="history-category" aria-label="按分类筛选" hidden>
+                  <option value="">全部分类</option>
+                </select>
+                <select id="history-platform" aria-label="按来源筛选">
+                  <option value="">全部来源</option>
+                  <option value="local">本地</option>
+                  <option value="bilibili">B站</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="zhihu">知乎</option>
+                  <option value="web">网页</option>
+                </select>
+                <input id="history-author" type="search" placeholder="作者" aria-label="按作者筛选" />
+                <select id="history-sort" aria-label="排序方式">
+                  <option value="created_at:desc" selected>最近导入</option>
+                  <option value="created_at:asc">最早导入</option>
+                  <option value="updated_at:desc">最近更新</option>
+                  <option value="updated_at:asc">最早更新</option>
+                </select>
+                <button class="button button-small" id="apply-history-filters" type="button">查询</button>
+              </div>
+              <button class="button library-action-button" id="reload-app" type="button" hidden>刷新</button>
+              <button class="button library-action-button" id="show-trash" type="button">回收站</button>
+            </div>
+          </header>
+          <section id="favorite-folders" class="favorite-folders" aria-labelledby="favorite-folders-title">
+            <div class="favorite-folders-heading">
+              <div>
+                <h2 id="favorite-folders-title">我的收藏夹</h2>
+              </div>
+              <div class="favorite-folder-heading-actions">
+                <button class="button library-action-button" id="add-favorite-content" type="button">添加视频</button>
+                <button class="button library-action-button" id="backfill-introductions" type="button">补齐缺失简介</button>
+                <button class="button library-action-button" id="create-favorite-folder" type="button">新建收藏夹</button>
+                <button class="button library-action-button" id="manage-favorite-folders" type="button" aria-pressed="false">管理</button>
+              </div>
+            </div>
+            <div id="favorite-folder-list" class="favorite-folder-list" role="list"></div>
+            <div id="introduction-backfill-status" class="introduction-backfill-status" hidden></div>
+          </section>
+          <div id="history-panel" class="panel empty-state">暂无归档内容</div>
+        </section>
+
+        <section class="view ask-view" data-view="ask" hidden>
+          <header class="page-header page-header-row">
+            <div><span class="page-eyebrow">ASK</span><h1>AI 问答</h1></div>
+            <button class="button" id="ask-open-settings" type="button">问答设置</button>
+          </header>
+          <div class="ask-layout">
+            <aside class="panel ask-session-panel">
+              <div class="ask-session-heading">
+                <h2>会话</h2>
+                <button class="button button-small" id="ask-new-session" type="button">新会话</button>
+              </div>
+              <div id="ask-session-list" class="ask-session-list" role="list"></div>
+            </aside>
+            <section class="panel ask-conversation-panel">
+              <div class="ask-scope-fields">
+                <label class="field"><span>范围</span><select id="ask-scope-kind">
+                  <option value="all">全库</option><option value="favorites">收藏</option><option value="selected">指定内容</option>
+                </select></label>
+              </div>
+              <div id="ask-selected-scope" class="ask-selected-scope">
+                <label id="ask-content-picker" class="field"><span>内容</span><select id="ask-content-ids" multiple size="5"></select></label>
+                <label class="field"><span>用户标签</span><select id="ask-tag-ids" multiple size="4"></select></label>
+                <label class="field"><span>收藏夹</span><select id="ask-folder-ids" multiple size="4"></select></label>
+              </div>
+              <div id="ask-scope-status" class="ask-scope-status" aria-live="polite"></div>
+              <div id="ask-messages" class="ask-messages" role="log" aria-live="polite"></div>
+              <form id="ask-question-form" class="ask-question-form">
+                <label class="field field-wide"><span>问题</span><textarea id="ask-question" rows="3" maxlength="5000"></textarea></label>
+                <div class="ask-query-actions">
+                  <span id="ask-query-status" aria-live="polite"></span>
+                  <div class="actions">
+                    <button class="button" id="ask-cancel-query" type="button" hidden>取消</button>
+                    <button class="button" id="ask-continue-query" type="button" hidden>继续</button>
+                    <button class="button button-primary" id="ask-submit-query" type="submit">发送</button>
+                  </div>
+                </div>
+              </form>
+            </section>
+            <aside class="panel ask-scope-panel" id="ask-scope-panel" aria-label="问答范围">
+              <div class="ask-scope-heading"><h2>问答范围</h2></div>
+              <p class="ask-scope-hint">范围决定「检索哪些内容」，材料决定「读全文还是总结」；两者归组到同一处，避免重复。</p>
+              <label class="field"><span>材料</span><select id="ask-material-scope">
+                <option value="full">全文</option><option value="summaries">已保存总结</option>
+              </select></label>
+              <div class="ask-scope-tabs" role="group" aria-label="范围类型">
+                <button class="ask-scope-tab is-active" type="button" data-ask-scope-tab="all" aria-pressed="true">全库</button>
+                <button class="ask-scope-tab" type="button" data-ask-scope-tab="tag" aria-pressed="false">标签</button>
+                <button class="ask-scope-tab" type="button" data-ask-scope-tab="folder" aria-pressed="false">收藏夹</button>
+              </div>
+              <div class="ask-scope-checks" id="ask-tag-checks" data-ask-scope-group="tag" hidden></div>
+              <div class="ask-scope-checks" id="ask-folder-checks" data-ask-scope-group="folder" hidden></div>
+              <p class="ask-scope-empty" id="ask-scope-empty">全库内容都在检索范围内</p>
+              <p class="ask-scope-summary" id="ask-scope-summary" role="status" aria-live="polite"></p>
+              <button class="button button-primary ask-scope-apply" id="ask-scope-apply" type="button">应用范围</button>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view settings-view" data-view="settings" hidden>
+          <header class="page-header page-header-row">
+            <div class="settings-header-title">
+              <span class="page-eyebrow">CONFIGURATION</span>
+              <h1>设置</h1>
+            </div>
+            <div class="settings-header-actions">
+              <button class="button button-small" id="settings-return" type="button">返回上一页</button>
+              <label class="theme-switch">
+                <span>界面主题</span>
+                <select id="ui-theme" aria-label="选择界面主题">
+                  <option value="day">白天 · 暖色掌机</option>
+                  <option value="night">夜间 · D黑白像素</option>
+                </select>
+              </label>
+            </div>
+          </header>
+          <div class="settings-layout">
+            <aside class="settings-sidebar" aria-label="设置分区">
+              <nav id="settings-subnav" class="settings-subnav">
+                <button class="settings-nav-button is-active" type="button" aria-controls="settings-platform-panel" data-settings-target="platform">平台</button>
+                <button class="settings-nav-button" type="button" aria-controls="asr-form" data-settings-target="asr">ASR</button>
+                <button class="settings-nav-button" type="button" aria-controls="summary-form" data-settings-target="summary">总结</button>
+                <button class="settings-nav-button" type="button" aria-controls="ask-model-form" data-settings-target="ask-model">回答模型</button>
+                <button class="settings-nav-button" type="button" aria-controls="ai-ask-cloud-form" data-settings-target="ai-ask-cloud">问答检索</button>
+                <button class="settings-nav-button" type="button" aria-controls="settings-storage-panel" data-settings-target="storage">存储</button>
+                <button class="settings-nav-button" type="button" aria-controls="settings-operations-panel" data-settings-target="operations">运维</button>
+              </nav>
+            </aside>
+            <div id="settings-content" class="settings-content">
+          <dl id="settings-panel" class="settings-list" data-settings-section="operations"></dl>
+          <div id="settings-storage-panel" class="settings-topbar" data-settings-section="storage">
+            <div class="settings-topbar-heading">
+              <h2 class="settings-form-title">归档位置</h2>
+            </div>
+            <div class="archive-path-row">
+              <input id="archive-root" type="text" aria-label="归档目录" autocomplete="off" placeholder="例如：D:\Knowledge" />
+              <button class="button" id="pick-archive-root" type="button">选择目录</button>
+              <button class="button button-primary" id="save-archive-root" type="button">保存</button>
+            </div>
+          </div>
+          <section id="settings-operations-panel" class="settings-form environment-check-section" data-settings-section="operations" aria-labelledby="environment-check-title">
+            <div class="settings-section-heading">
+              <div>
+                <h2 id="environment-check-title" class="settings-form-title">系统自检</h2>
+              </div>
+              <button class="button" id="check-environment" type="button">立即检查</button>
+            </div>
+            <p id="environment-check-status" class="environment-check-status" aria-live="polite">尚未检查</p>
+            <div id="environment-check-list" class="environment-check-list" aria-live="polite"></div>
+          </section>
+          <section id="data-governance-section" class="settings-form data-governance-section" data-settings-section="operations">
+            <div class="settings-section-heading">
+              <div>
+                <h2 class="settings-form-title">数据治理与迁移</h2>
+              </div>
+              <span id="data-governance-status" class="environment-check-status" aria-live="polite">尚未检查</span>
+            </div>
+            <div class="asr-basic-grid">
+              <label class="field">
+                <span>原始媒体/字幕保留天数</span>
+                <input id="retention-source-days" type="number" min="1" max="3650" step="1" />
+              </label>
+              <label class="field">
+                <span>缓存保留天数</span>
+                <input id="retention-cache-days" type="number" min="1" max="3650" step="1" />
+              </label>
+            </div>
+            <div class="actions governance-actions">
+              <button class="button" id="save-retention" type="button">保存保留策略</button>
+              <button class="button button-danger" id="cleanup-data" type="button">预览并清理可回收数据</button>
+              <button class="button" id="backup-data" type="button">备份内容与设置</button>
+            </div>
+            <div class="archive-path-row governance-restore-row">
+              <input id="restore-backup-path" type="text" aria-label="备份文件路径" placeholder="粘贴本机备份 .zip 路径" />
+              <button class="button" id="restore-data" type="button">恢复备份</button>
+            </div>
+            <p id="data-governance-meta" class="settings-form-hint" aria-live="polite"></p>
+            <p id="app-meta-status" class="settings-form-hint" aria-live="polite"></p>
+          </section>
+          <section id="settings-platform-panel" class="settings-form platform-connections-section" data-settings-section="platform">
+            <div class="settings-section-heading">
+              <div>
+                <h2 class="settings-form-title">平台连接（电脑版）</h2>
+              </div>
+              <button class="button" id="refresh-platform-connections" type="button">检查全部</button>
+            </div>
+            <div id="platform-connections" class="platform-grid" aria-live="polite"></div>
+          </section>
+          <dialog id="bilibili-qr-panel" class="bilibili-qr-dialog" aria-labelledby="bilibili-qr-title"></dialog>
+          <dialog id="asr-local-model-dialog" class="asr-model-dialog" aria-labelledby="asr-local-model-dialog-title"></dialog>
+          <form id="summary-form" class="settings-form" data-settings-section="summary">
+            <div class="asr-form-heading">
+              <div>
+                <h2 class="settings-form-title">总结模型配置</h2>
+                <p class="settings-form-hint">
+                  模型服务会接收完整的带时间戳转写分块，并按 Prompt 和 Skill 生成总结。
+                </p>
+              </div>
+              <span id="summary-status" class="asr-status-badge">外部未配置</span>
+            </div>
+            <details id="summary-api-details" class="asr-api-details" open>
+              <summary>
+                <span>外部 API 配置 <span id="summary-config-dot" class="summary-status-dot" title="尚未识别接口"></span></span>
+                <span id="summary-config-badge" class="asr-config-badge">未识别</span>
+              </summary>
+              <div class="asr-api-fields">
+                <label class="field field-wide">
+                  <span>API Base URL 或完整端点地址</span>
+                  <input id="summary-api-url" type="url" placeholder="https://api.openai.com/v1" />
+                </label>
+                <label class="field field-wide">
+                  <span>API 密钥</span>
+                  <input id="summary-api-key" type="password" autocomplete="new-password" placeholder="粘贴 API Key（保存后不会回显）" />
+                </label>
+                <label class="field summary-api-mode-field">
+                  <span>调用协议</span>
+                  <select id="summary-api-mode">
+                    <option value="chat_completions">Chat Completions（对话补全）</option>
+                    <option value="responses">Responses（新版响应接口）</option>
+                  </select>
+                  <span class="field-hint">URL 和密钥用于连接；调用协议决定请求格式与接口路径，需与服务商支持项一致。</span>
+                </label>
+                <div class="summary-target-grid">
+                  <label class="field summary-provider-field">
+                    <span>服务商</span>
+                    <select id="summary-provider">
+                      <option value="openai">OpenAI</option>
+                      <option value="deepseek">DeepSeek</option>
+                      <option value="minimax">MiniMax</option>
+                      <option value="qwen">Qwen</option>
+                      <option value="doubao">豆包</option>
+                      <option value="hunyuan">混元</option>
+                      <option value="glm">GLM</option>
+                      <option value="grok">Grok</option>
+                      <option value="custom">自定义</option>
+                    </select>
+                  </label>
+                  <label class="field summary-model-field">
+                    <span>总结模型 ID</span>
+                    <div class="summary-model-picker">
+                      <input
+                        id="summary-model"
+                        type="text"
+                        placeholder="选择模型后自动保存；手动填写后按 Enter 保存"
+                        autocomplete="off"
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-controls="summary-model-options"
+                        aria-expanded="false"
+                        disabled
+                      />
+                      <button
+                        class="summary-model-toggle"
+                        type="button"
+                        id="summary-model-toggle"
+                        aria-label="展开模型列表"
+                        aria-haspopup="listbox"
+                        aria-controls="summary-model-options"
+                        aria-expanded="false"
+                        disabled
+                      >▼</button>
+                      <div id="summary-model-options" class="summary-model-options" role="listbox" hidden></div>
+                    </div>
+                  </label>
+                </div>
+                <dialog id="summary-model-dialog" class="summary-model-dialog" aria-labelledby="summary-model-dialog-title">
+                  <div class="summary-model-dialog-shell">
+                    <div class="summary-model-dialog-header">
+                      <h3 id="summary-model-dialog-title">选择总结模型</h3>
+                      <button class="summary-model-dialog-close" type="button" id="summary-model-dialog-close" aria-label="关闭">×</button>
+                    </div>
+                    <label class="field summary-model-dialog-search">
+                      <span>搜索模型</span>
+                      <input id="summary-model-dialog-search" type="search" placeholder="输入模型名称或 ID" autocomplete="off" />
+                    </label>
+                    <div id="summary-model-dialog-options" class="summary-model-dialog-options" role="listbox" aria-label="可选总结模型"></div>
+                    <div class="summary-model-dialog-footer">
+                      <span id="summary-model-page-status" aria-live="polite"></span>
+                      <div class="summary-model-dialog-pagination">
+                        <button class="button" type="button" id="summary-model-page-previous">上一页</button>
+                        <button class="button" type="button" id="summary-model-page-next">下一页</button>
+                      </div>
+                    </div>
+                  </div>
+                </dialog>
+                <p id="summary-validation" class="asr-validation" aria-live="polite" hidden></p>
+                <div class="summary-actions field-wide">
+                  <button class="button button-primary" type="submit">保存</button>
+                  <button class="button" type="button" id="clear-summary">清除配置</button>
+                </div>
+              </div>
+            </details>
+            <details id="summary-prompt-details" class="asr-api-details">
+              <summary>
+                <span>总结 Prompt <span id="summary-prompt-dot" class="summary-status-dot" title="总结 Prompt 未配置"></span></span>
+                <span id="summary-prompt-meta" class="asr-config-badge">内置 Prompt</span>
+                <span id="summary-prompt-save-status" class="asr-config-badge summary-prompt-save-status is-saved">已保存</span>
+              </summary>
+              <div class="asr-api-fields">
+                <label class="field field-wide">
+                  <textarea id="summary-prompt" rows="10" spellcheck="false"></textarea>
+                  <span id="summary-prompt-hint" class="field-hint">Prompt 决定输出结构和总结方法；停止输入后会自动保存。</span>
+                  <button class="button button-small" type="button" id="retry-summary-prompt" hidden>重试保存</button>
+                </label>
+              </div>
+            </details>
+            <div class="field field-wide">
+              <span>Skill 存储目录</span>
+              <div class="archive-path-row summary-skills-root-row">
+                <input id="summary-skills-root" type="text" aria-label="Skill 存储目录" autocomplete="off" />
+                <button class="button" id="pick-summary-skills-root" type="button">选择文件夹</button>
+              </div>
+              <span class="field-hint">从该目录递归读取 Markdown/纯文本 Skill；目录本身不会作为视频事实发送给模型。</span>
+            </div>
+            <label class="field field-wide">
+              <span>使用的 Skill 文件</span>
+              <select id="summary-skill">
+                <option value="">不使用 Skill 文件</option>
+              </select>
+              <span id="summary-skill-meta" class="field-hint">未选择 Skill；Skill 只提供总结规则，不作为视频事实来源。</span>
+            </label>
+            <label class="field field-wide setting-toggle">
+              <span>标签建议</span>
+              <span class="checkbox-line">
+                <input id="ai-tag-recommendation-enabled" type="checkbox" />
+                <span>总结完成后根据现有标签生成 AI 候选（确认后才写入）</span>
+              </span>
+            </label>
+            <p class="asr-privacy-note">官网提供的 Base URL 可直接填写，产品会按接口类型补全请求端点。总结 API Key 使用本机安全存储，不会在设置响应、任务归档或总结 Markdown 中回显。</p>
+          </form>
+          <form id="ai-ask-cloud-form" class="settings-form" data-settings-section="ai-ask-cloud" hidden>
+            <h2 class="settings-form-title">AI 问答检索</h2>
+            <p id="ai-ask-cloud-status" class="asr-validation" aria-live="polite"></p>
+            <label class="field field-wide">
+              <span>硅基流动 API 密钥</span>
+              <input id="ai-ask-cloud-api-key" type="password" autocomplete="new-password" placeholder="粘贴 API Key（保存后不会回显）" />
+            </label>
+            <button class="button button-primary" type="submit">保存问答检索配置</button>
+          </form>
+          <form id="ask-model-form" class="settings-form" data-settings-section="ask-model" hidden>
+            <h2 class="settings-form-title">回答模型</h2>
+            <label class="field field-wide setting-toggle"><span>总结配置</span><span class="checkbox-line"><input id="ask-reuse-summary" type="checkbox" /><span>复用总结模型配置</span></span></label>
+            <label class="field field-wide"><span>服务商</span><input id="ask-provider" type="text" maxlength="80" value="openai-compatible" /></label>
+            <label class="field field-wide"><span>API 地址</span><input id="ask-api-url" type="url" maxlength="1000" /></label>
+            <label class="field field-wide"><span>接口类型</span><select id="ask-api-mode"><option value="chat_completions">Chat Completions</option><option value="responses">Responses</option></select></label>
+            <label class="field field-wide"><span>模型</span><input id="ask-model" type="text" maxlength="200" /></label>
+            <label class="field field-wide"><span>API Key</span><input id="ask-api-key" type="password" autocomplete="new-password" placeholder="API Key" maxlength="500" /></label>
+            <p id="ask-model-status" class="asr-validation" aria-live="polite"></p>
+            <div class="actions"><button class="button" id="ask-model-test" type="button">测试连接</button><button class="button button-primary" type="submit">保存</button></div>
+          </form>
+          <form id="asr-form" class="settings-form" data-settings-section="asr" hidden>
+            <div class="asr-form-heading">
+              <div>
+                <h2 class="settings-form-title">公开 ASR 语音识别</h2>
+                <p class="settings-form-hint">
+                  视频没有公开字幕时，产品会获取音频并交给云 ASR 转写。当前使用 OpenAI 兼容接口，默认 Groq Whisper。
+                </p>
+              </div>
+              <span id="asr-status" class="asr-status-badge">未配置</span>
+            </div>
+            <p class="asr-capability-note">
+              当前版本支持 OpenAI 兼容云端转写，以及可下载公开模型的本地 ASR；浏览器实时识别等其他引擎暂未接入。
+            </p>
+            <p id="asr-api-help" class="asr-api-help">
+              OpenAI 云识别需要填写接口地址和你自己的 API Key。产品不能读取其他软件中的登录态或密钥；选择“OpenAI 官方”后会自动填入接口。
+            </p>
+            <div class="asr-basic-grid">
+              <label class="field" id="asr-engine-field">
+                <span>识别引擎</span>
+                <select id="asr-engine">
+                  <option value="cloud">云端 API</option>
+                  <option value="local">本地模型（离线）</option>
+                </select>
+              </label>
+              <label class="field" id="asr-provider-field">
+                <span>服务商</span>
+                <select id="asr-provider">
+                  <option value="custom">自定义</option>
+                  <option value="groq">Groq（快 · 免费额度）</option>
+                  <option value="openai">OpenAI 官方（需 API Key）</option>
+                  <option value="siliconflow">硅基流动（国内访问快）</option>
+                  <option value="zhipu">智谱（国内访问快）</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="minimax">MiniMax</option>
+                  <option value="qwen">Qwen</option>
+                  <option value="doubao">豆包</option>
+                  <option value="hunyuan">混元</option>
+                  <option value="glm">GLM</option>
+                  <option value="grok">Grok</option>
+                </select>
+              </label>
+              <label class="field" id="asr-model-field">
+                <span>识别模型 ID</span>
+                <div class="asr-model-picker">
+                  <input
+                    id="asr-model"
+                    type="text"
+                    placeholder="获取模型后选择或手动填写模型 ID"
+                    autocomplete="off"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-controls="asr-model-options"
+                    aria-expanded="false"
+                  />
+                  <button
+                    class="asr-model-toggle"
+                    type="button"
+                    id="asr-model-toggle"
+                    aria-label="展开 ASR 模型列表"
+                    aria-controls="asr-model-options"
+                    aria-expanded="false"
+                  >▼</button>
+                  <div id="asr-model-options" class="asr-model-options" role="listbox" hidden></div>
+                </div>
+                <span id="asr-model-prerequisite" class="field-hint" hidden></span>
+              </label>
+              <button class="button asr-discover-button" type="button" id="test-asr">获取模型</button>
+            </div>
+            <div id="asr-local-panel" class="asr-local-panel" hidden>
+              <div class="asr-local-heading">
+                <div>
+                  <h3>本地公开模型</h3>
+                  <p class="settings-form-hint">
+                    先选择操作，再进入对应的下一层。已有模型会扫描后自动导入；公开模型可选择后下载。
+                  </p>
+                </div>
+                <div class="asr-local-heading-badges">
+                  <span id="asr-local-count" class="asr-local-runtime-status" hidden></span>
+                  <span id="asr-local-runtime-status" class="asr-local-runtime-status">检查本地组件…</span>
+                  <button class="button button-small" type="button" id="install-asr-runtime" hidden>安装缺失组件</button>
+                </div>
+                <p id="asr-local-runtime-install-status" class="settings-form-hint" aria-live="polite"></p>
+              </div>
+
+              <label class="field">
+                <span>本地模型操作</span>
+                <select id="asr-local-source">
+                  <option value="">请选择下一步</option>
+                  <option value="existing">已有模型路径：扫描并导入</option>
+                  <option value="download">公开模型：下载并校验</option>
+                </select>
+              </label>
+
+              <div id="asr-local-existing-panel" class="asr-local-subpanel" hidden>
+                <label class="field field-wide">
+                  <span>已有模型目录或 Hugging Face 缓存路径</span>
+                  <input id="asr-local-import-path" type="text" placeholder="例如 D 盘下的 .hf 缓存目录；不会扫描整块磁盘" />
+                </label>
+                <div class="actions">
+                  <button class="button" type="button" id="scan-import-asr-model">扫描并导入</button>
+                </div>
+                <p id="asr-local-import-status" class="settings-form-hint" aria-live="polite"></p>
+              </div>
+
+              <div id="asr-local-download-panel" class="asr-local-subpanel" hidden>
+                <label class="field">
+                  <span>选择公开模型</span>
+                  <select id="asr-local-download-model">
+                    <option value="">正在加载模型列表…</option>
+                  </select>
+                </label>
+                <div class="actions">
+                  <button class="button" type="button" id="download-selected-asr-model">下载并校验</button>
+                </div>
+                <p id="asr-local-download-status" class="settings-form-hint" aria-live="polite"></p>
+                <details id="asr-local-model-list-details" class="asr-api-details">
+                  <summary>
+                    <span>查看公开模型详情</span>
+                    <span class="asr-config-badge">下载后需校验</span>
+                  </summary>
+                  <div id="asr-local-model-list" class="asr-local-model-list" aria-live="polite"></div>
+                </details>
+              </div>
+
+              <div id="asr-local-installed-panel" class="asr-local-installed-panel">
+                <div class="asr-local-installed-heading">
+                  <strong>当前本地模型</strong>
+                  <span id="asr-local-installed-badge" class="asr-config-badge">未选择</span>
+                </div>
+                <label class="field">
+                  <span>选择模型（扫描或下载完成后会自动选中）</span>
+                  <select id="asr-local-model"></select>
+                </label>
+                <p id="asr-local-model-status" class="settings-form-hint" aria-live="polite"></p>
+              </div>
+            </div>
+            <details id="asr-api-details" class="asr-api-details">
+              <summary>
+                <span>API 配置</span>
+                <span id="asr-config-badge" class="asr-config-badge">云 ASR ✗</span>
+              </summary>
+              <div class="asr-api-fields">
+                <label class="field field-wide">
+                  <span>转写接口地址</span>
+                  <input id="asr-api-url" type="url" placeholder="https://api.groq.com/openai/v1/audio/transcriptions" />
+                </label>
+                <label class="field field-wide">
+                  <span>API 密钥</span>
+                  <input id="asr-api-key" type="password" autocomplete="new-password" placeholder="粘贴 API Key（保存后不会回显）" />
+                </label>
+                <p id="asr-provider-hint" class="settings-form-hint field-wide"></p>
+                <div class="asr-copy-actions field-wide">
+                  <button class="button" type="button" id="copy-summary-to-asr">从 AI 接口复制</button>
+                  <span id="asr-copy-status" class="field-hint" aria-live="polite"></span>
+                </div>
+              </div>
+            </details>
+            <p id="asr-validation" class="asr-validation" aria-live="polite" hidden></p>
+            <p class="asr-privacy-note">云端 API Key 只用于本机调用 ASR，不会在设置响应中返回；本地模型模式不需要 API Key。</p>
+            <div class="actions field-wide">
+              <button class="button button-primary" type="submit" id="save-asr">保存</button>
+              <button class="button" type="button" id="clear-asr">清除配置</button>
+            </div>
+          </form>
+            </div>
+          </div>
+        </section>
+
+        <section class="view result-view" data-view="result" hidden>
+          <header class="page-header page-header-row">
+            <button class="button result-header-back" id="result-header-back" type="button" aria-label="返回知识库" title="返回知识库" hidden>
+              <svg class="icon-control" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
+            </button>
+            <h1 id="result-title">结果</h1>
+            <div class="result-toolbar" id="result-toolbar" role="toolbar" aria-label="内容操作">
+              <button id="result-toolbar-copy" class="result-toolbar-button" type="button" aria-label="复制正文" data-tooltip="复制正文">
+                <svg class="icon-control" aria-hidden="true"><use href="#icon-copy"></use></svg>
+              </button>
+              <button id="result-toolbar-export" class="result-toolbar-button" type="button" aria-label="导出" data-tooltip="导出" aria-expanded="false">
+                <svg class="icon-control" aria-hidden="true"><use href="#icon-download"></use></svg>
+              </button>
+              <button id="result-toolbar-delete" class="result-toolbar-button" type="button" aria-label="删除" data-tooltip="删除">
+                <svg class="icon-control" aria-hidden="true"><use href="#icon-trash"></use></svg>
+              </button>
+              <button id="result-toolbar-more" class="result-toolbar-button" type="button" aria-label="更多" data-tooltip="更多" aria-expanded="false">
+                <svg class="icon-control" aria-hidden="true"><use href="#icon-more"></use></svg>
+              </button>
+            </div>
+            <div id="result-toolbar-menu" class="result-toolbar-menu" hidden>
+              <button id="result-more-regenerate" class="result-toolbar-menu-item" type="button">重新生成</button>
+              <button id="result-more-back" class="result-toolbar-menu-item" type="button">返回知识库</button>
+            </div>
+            <div id="export-popover" class="export-popover" role="dialog" aria-label="导出" hidden>
+              <div class="export-popover-heading">
+                <h2>导出</h2>
+                <button id="export-popover-close" class="export-popover-close" type="button" aria-label="关闭">
+                  <svg class="icon-control" aria-hidden="true"><use href="#icon-close"></use></svg>
+                </button>
+              </div>
+              <fieldset class="export-popover-group">
+                <legend>导出到</legend>
+                <label class="export-option"><input type="radio" name="export-destination" value="download" checked /> 下载文件夹</label>
+                <label class="export-option"><input type="radio" name="export-destination" value="archive" /> 归档目录</label>
+                <p class="export-popover-hint">归档目录＝该内容的产品归档目录；不开放自定义本地路径。</p>
+              </fieldset>
+              <fieldset class="export-popover-group">
+                <legend>格式</legend>
+                <label class="export-option"><input type="radio" name="export-format" value="markdown" checked /> Markdown</label>
+                <label class="export-option"><input type="radio" name="export-format" value="text" /> 纯文本</label>
+                <label class="export-option"><input type="radio" name="export-format" value="subtitle" /> 字幕 SRT</label>
+                <label class="export-option"><input type="radio" name="export-format" value="json" /> JSON</label>
+              </fieldset>
+              <div class="export-popover-actions">
+                <button id="export-popover-cancel" class="button" type="button">取消</button>
+                <button id="export-popover-submit" class="button button-primary" type="button">导出</button>
+              </div>
+            </div>
+          </header>
+          <div class="result-meta" id="result-meta"></div>
+          <section id="result-tags-panel" class="result-supporting result-tags-panel" aria-labelledby="result-tags-title">
+            <div class="result-tags-heading">
+              <h2 id="result-tags-title">总览</h2>
+              <button class="button button-small" id="edit-result-tags" type="button">编辑标签</button>
+            </div>
+            <p id="result-overview" class="result-overview">暂无总览</p>
+            <div id="result-tag-list" class="library-card-tags"></div>
+            <div id="result-tag-suggestions" class="tag-suggestions" hidden></div>
+          </section>
+          <div class="result-workspace">
+            <aside class="result-quick-panel" id="result-quick-panel" aria-label="内容快捷选择">
+              <div class="result-quick-heading">
+                <button id="result-quick-back" class="button button-small result-quick-back" type="button" aria-label="返回知识库" data-tooltip="返回知识库">
+                  <svg class="icon-control" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
+                </button>
+              </div>
+              <label class="result-quick-search">
+                <svg class="icon-control" aria-hidden="true"><use href="#icon-search"></use></svg>
+                <input id="result-quick-search" type="search" placeholder="搜索内容…" autocomplete="off" />
+              </label>
+              <div id="result-quick-list" class="result-quick-list" role="list"></div>
+            </aside>
+            <div class="result-reading-layout">
+              <div id="result-markdown" class="result-markdown" tabindex="0"></div>
+              <aside id="result-outline" class="result-outline" aria-label="章节目录">
+                <div class="result-outline-heading">
+                  <button id="result-outline-toggle" class="result-outline-toggle" type="button" aria-expanded="true">目录</button>
+                  <div id="result-outline-actions" class="result-outline-actions">
+                    <button id="result-outline-top" class="button button-small result-outline-top" type="button" aria-label="回到顶部" data-tooltip="回到顶部">
+                      <svg class="icon-control" aria-hidden="true"><use href="#icon-arrow-up"></use></svg>
+                    </button>
+                    <button id="result-outline-edit" class="button button-small" type="button">编辑</button>
+                    <button id="result-outline-save" class="button button-small button-primary" type="button" hidden>保存</button>
+                  </div>
+                </div>
+                <nav id="result-outline-list" class="result-outline-list"></nav>
+                <a id="result-outline-source" class="result-source-card" target="_blank" rel="noopener noreferrer" hidden>
+                  <span id="result-source-thumb" class="result-source-thumb" aria-hidden="true"></span>
+                  <span class="result-source-body">
+                    <span id="result-source-title" class="result-source-title"></span>
+                    <span class="result-source-meta">
+                      <span id="result-source-badge" class="result-source-badge"></span>
+                      <span id="result-source-time" class="result-source-time"></span>
+                    </span>
+                    <span class="result-source-link">点击打开来源</span>
+                  </span>
+                  <svg class="icon-control result-source-external" aria-hidden="true"><use href="#icon-external"></use></svg>
+                </a>
+                <button id="result-outline-regenerate" class="result-outline-regenerate" type="button" aria-label="重新生成" data-tooltip="重新生成">
+                  <svg class="icon-control" aria-hidden="true"><use href="#icon-refresh"></use></svg> 重新生成
+                </button>
+              </aside>
+            </div>
+          </div>
+          <nav class="result-footer-navigation" aria-label="结果连续浏览">
+            <button class="button" id="result-footer-prev" type="button"><svg class="icon-control" aria-hidden="true"><use href="#icon-chevron-left"></use></svg> 上一条</button>
+            <button class="button" id="result-footer-back" type="button">返回知识库</button>
+            <button class="button" id="result-footer-next" type="button">下一条 <svg class="icon-control" aria-hidden="true"><use href="#icon-chevron-right"></use></svg></button>
+          </nav>
+          <details id="result-introduction-panel" class="content-introduction">
+            <summary>总览</summary>
+            <div class="content-introduction-editor">
+              <input id="result-introduction" maxlength="30" placeholder="最多 30 个字" />
+              <button class="button button-small" id="save-result-introduction" type="button">保存简介</button>
+              <span id="result-introduction-count" class="field-hint">0/30</span>
+            </div>
+          </details>
+          <div id="result-evidence" class="result-supporting" hidden></div>
+          <details id="result-versions" class="result-supporting" hidden></details>
+          <details id="result-feedback" class="result-supporting" hidden></details>
+        </section>
+
+        <section class="view batch-detail-view" data-view="batch-detail" hidden>
+          <header class="page-header page-header-row">
+            <div>
+              <span class="page-eyebrow">IMPORT BATCH</span>
+              <h1 id="batch-detail-title">导入批次</h1>
+              <p id="batch-detail-meta" class="field-hint"></p>
+            </div>
+            <button class="button" id="batch-detail-back" type="button">返回知识库</button>
+          </header>
+          <div id="batch-detail-progress" class="batch-detail-progress"></div>
+          <div id="batch-detail-panel" class="panel batch-detail-panel empty-state">选择一个批次查看成员</div>
+        </section>
+      </main>
+    </div>
+    <div id="ui-tooltip" class="ui-tooltip" role="tooltip" hidden></div>
+    <div id="library-menu-portal" class="library-menu-portal" hidden></div>
+    <dialog id="link-query-dialog" class="link-query-dialog" aria-labelledby="link-query-title"></dialog>
+    <dialog id="task-success-dialog" class="task-success-dialog" aria-labelledby="task-success-title"></dialog>
+    <dialog id="text-entry-dialog" class="product-text-dialog" aria-labelledby="text-entry-dialog-title"></dialog>
+    <script>
+      // The normal entry point is http://127.0.0.1:8765/, but keeping the
+      // source folder directly openable makes local troubleshooting easier.
+      const uiBase = window.location.protocol === "file:" ? "." : "/ui";
+      const uiRevision = "20261031-rag-content-link";
+      document.querySelector("#ui-style").href = `${uiBase}/style.css?v=${uiRevision}`;
+      const appScript = document.createElement("script");
+      appScript.src = `${uiBase}/app.js?v=${uiRevision}`;
+      document.body.append(appScript);
+      const accountScript = document.createElement("script");
+      accountScript.src = `${uiBase}/account.js?v=${uiRevision}`;
+      document.body.append(accountScript);
+    </script>
+  </body>
+</html>

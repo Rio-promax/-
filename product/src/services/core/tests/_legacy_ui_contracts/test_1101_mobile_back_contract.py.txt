@@ -1,0 +1,181 @@
+"""11-01 手机端壳与 UI 缺陷 —— 源码级契约。
+
+Android 壳的 Java 代码在本机没有单元测试框架（无 Robolectric，且真机行为无法
+离机复现），因此这里只断言"关键实现存在/关键缺陷已消失"，真实交互（返回键、
+分享弹窗、外链出壳）留给人工在手机上验收。
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+import pytest
+
+
+SERVICE_DIRECTORY = Path(__file__).parents[1]
+UI_DIRECTORY = SERVICE_DIRECTORY / "app" / "ui"
+SHELL_DIRECTORY = SERVICE_DIRECTORY.parent / "mobile-shell"
+JAVA_DIRECTORY = (
+    SHELL_DIRECTORY / "android" / "app" / "src" / "main" / "java" / "com" / "catsk" / "multisourcekb"
+)
+
+
+@pytest.fixture(scope="module")
+def script() -> str:
+    return (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def markup() -> str:
+    return (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def styles() -> str:
+    return (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+
+def _java(name: str) -> str:
+    return (JAVA_DIRECTORY / name).read_text(encoding="utf-8")
+
+
+def test_back_bridge_is_exposed_to_the_shell(script: str) -> None:
+    assert "window.__kbBack" in script
+    assert '"handled"' in script
+    assert '"root"' in script
+
+
+def test_back_bridge_reaches_settings_result_and_batch_views(script: str) -> None:
+    start = script.index("window.__kbBack")
+    block = script[start : start + 900]
+    assert 'view === "settings"' in block
+    assert 'view === "result"' in block
+    assert 'view === "batch-detail"' in block
+    assert "returnToResultParent()" in block
+
+
+def test_main_activity_takes_over_the_back_button() -> None:
+    source = _java("MainActivity.java")
+    assert "getOnBackPressedDispatcher" in source
+    assert "OnBackPressedCallback" in source
+    assert "__kbBack" in source
+    assert "再按一次退出" in source
+
+
+def test_external_links_leave_the_shell() -> None:
+    source = _java("ShellWebViewClient.java")
+    assert "isExternalSite" in source
+    assert "Intent.ACTION_VIEW" in source
+    assert "ShellConfig.SERVER_ORIGIN" in source
+
+
+def test_navigation_whitelist_no_longer_swallows_video_sites() -> None:
+    config = json.loads((SHELL_DIRECTORY / "capacitor.config.json").read_text(encoding="utf-8"))
+    assert config["server"]["allowNavigation"] == []
+
+
+def test_share_dialog_no_longer_closes_itself() -> None:
+    source = _java("ShareReceiverActivity.java")
+    assert "AUTO_CLOSE_DELAY_MS" not in source
+    assert "postDelayed" not in source
+    assert "showSubmitting" in source
+    assert "showSuccess" in source
+    assert "showFailure" in source
+
+
+def test_share_dialog_offers_two_exits() -> None:
+    source = _java("ShareReceiverActivity.java")
+    assert "openProduct" in source
+    assert "share_stay" in source
+    assert "share_action_back" in source or "backLabelFor" in source
+
+    layout = (
+        JAVA_DIRECTORY.parents[3] / "res" / "layout" / "activity_share.xml"
+    ).read_text(encoding="utf-8")
+    assert '@+id/share_stay' in layout
+    assert '@+id/share_close' in layout
+    assert "share_card_bg" in layout
+
+
+def test_share_dialog_uses_the_product_palette() -> None:
+    directory = JAVA_DIRECTORY.parents[3] / "res"
+    card = (directory / "drawable" / "share_card_bg.xml").read_text(encoding="utf-8")
+    assert "#FFFAF0" in card
+    assert "#C8A47A" in card
+
+    styles = (directory / "values" / "styles.xml").read_text(encoding="utf-8")
+    assert "AppTheme.ShareDialog" in styles
+
+
+def test_platform_login_does_not_expose_or_export_cookies() -> None:
+    source = _java("CookieWebActivity.java")
+    assert "setAcceptCookie(true)" in source
+    assert "setAcceptThirdPartyCookies(webView, true)" in source
+    assert "getCookie(" not in source
+    assert "ClipboardManager" not in source
+    assert "setPrimaryClip" not in source
+    assert "EXTRA_COOKIE" not in source
+
+    layout = (
+        JAVA_DIRECTORY.parents[3] / "res" / "layout" / "activity_cookie_web.xml"
+    ).read_text(encoding="utf-8")
+    assert "cookie_value" not in layout
+    assert "cookie_read" not in layout
+    assert "读取 Cookie" not in layout
+
+
+def test_shared_capture_stays_on_device_and_posts_product_identity() -> None:
+    capture = _java("CookieWebActivity.java")
+    poster = _java("HttpPoster.java")
+    share = _java("ShareReceiverActivity.java")
+    config = _java("ShellConfig.java")
+
+    assert "document.querySelectorAll" in capture
+    assert "video.textTracks" in capture
+    assert "getCookie(" not in capture
+    assert "canonicalCaptureUrl" in capture
+    assert "clearQuery()" in capture
+    assert "EXTRA_CAPTURE_URL" in share
+    assert "/api/v1/imports/link" not in share
+    assert "MOBILE_INTAKE_ENDPOINT" in config
+    assert "CookieManager.getInstance().getCookie(ShellConfig.SERVER_ORIGIN)" in poster
+    assert 'setRequestProperty("Cookie", productCookie)' in poster
+    assert "platformCookie" not in poster
+    assert "Authorization" in poster
+    assert "仅作为外围访问门" in config
+
+    manifest = (SHELL_DIRECTORY / "android" / "app" / "src" / "main" / "AndroidManifest.xml")
+    assert 'android:allowBackup="false"' in manifest.read_text(encoding="utf-8")
+
+
+def test_mobile_capture_fails_closed_for_non_https_submission() -> None:
+    source = _java("HttpPoster.java")
+
+    https_check = 'if (!"https".equalsIgnoreCase(endpoint.getProtocol()))'
+    assert https_check in source
+    assert source.index(https_check) < source.index("CookieManager.getInstance().getCookie")
+    assert source.index(https_check) < source.index('setRequestProperty("Authorization"')
+    assert source.index(https_check) < source.index('setRequestProperty("Cookie"')
+    assert source.index(https_check) < source.index("output.write(payload)")
+    assert "connection.setInstanceFollowRedirects(false)" in source
+
+
+def test_top_safe_area_is_reserved(styles: str) -> None:
+    assert "env(safe-area-inset-top)" in styles
+    matches = re.findall(r"\.app-shell\s*\{(.*?)\}", styles, re.S)
+    assert matches, "missing .app-shell rule"
+    assert any("env(safe-area-inset-top)" in block for block in matches)
+
+
+def test_settings_tabs_use_two_rows_on_phones(styles: str) -> None:
+    matches = re.findall(r"\.settings-subnav\s*\{(.*?)\}", styles, re.S)
+    assert matches
+    assert any("repeat(4, minmax(0, 1fr))" in block for block in matches)
+
+
+def test_ask_retrieval_has_a_status_slot(markup: str, script: str) -> None:
+    assert 'id="ai-ask-cloud-status"' in markup
+    assert "#ai-ask-cloud-status" in script
+    assert "AI 问答无法检索" in script

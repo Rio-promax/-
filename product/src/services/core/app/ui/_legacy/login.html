@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>登录 · 内容知识库</title>
+    <link rel="stylesheet" href="/ui/login.css" />
+    <script src="/ui/login.js" defer></script>
+  </head>
+  <body>
+    <main class="login-card">
+      <h1>登录</h1>
+      <form id="login-form">
+        <label>
+          <span>账号</span>
+          <input name="username" type="text" autocomplete="username" minlength="3" maxlength="64" required />
+        </label>
+        <label>
+          <span>密码</span>
+          <input name="password" type="password" autocomplete="current-password" minlength="12" maxlength="256" required />
+        </label>
+        <p id="login-error" role="alert" hidden></p>
+        <button id="login-submit" type="submit">登录</button>
+      </form>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from copy import deepcopy
+from pathlib import Path
+from threading import Event, Thread
+
+from fastapi.testclient import TestClient
+import pytest
+
+from app.api.main import create_app
+from app.domain.jobs import Job, JobState, StaleJobAttemptError
+from app.workflows.queue import LocalJobQueue
+
+
+UI = Path(__file__).resolve().parents[1] / "app" / "ui"
+APP_JS = (UI / "app.js").read_text(encoding="utf-8")
+STYLE_CSS = (UI / "style.css").read_text(encoding="utf-8")
+
+
+def test_0912_content_task_ui_contracts_are_explicit() -> None:
+    assert STYLE_CSS.count("grid-template-columns: repeat(4, minmax(0, 1fr));") >= 1
+    assert ".creator-scan-list {" in STYLE_CSS
+    assert "@media (max-width: 760px)" in STYLE_CSS
+    assert "@media (max-width: 520px)" in STYLE_CSS
+    # Six columns belong to .library-grid only (default + [data-columns="6"]);
+    # the creator-scan list must stay at four or fewer.
+    assert STYLE_CSS.count("grid-template-columns: repeat(6, minmax(0, 1fr));") == 2
+
+    assert 'cover.className = ["source-cover", ...modifierClasses].join(" ");' in APP_JS
+    assert "pixel-task-stage-track" in APP_JS
+    assert "pixel-cat-on-track" in APP_JS
+    assert "const catVisual = renderPixelCat(job);" not in APP_JS
+    assert "renderTaskListCardLegacy" not in APP_JS
+    assert APP_JS.count("async function loadTaskList()") == 1
+    assert APP_JS.count('return execution === "waiting";') >= 2
+    assert 'api("/api/v1/jobs?limit=200")' in APP_JS
+    assert 'api("/api/v1/history")' not in APP_JS.rsplit("async function loadTaskList()", 1)[-1].split(
+        "async function deleteJob", 1
+    )[0]
+
+    assert "body.append(heading, meta);" in APP_JS
+    assert "body.append(heading, meta, stage);" not in APP_JS
+    assert "details.append(renderTaskStages(job));" in APP_JS
+    assert "@media (max-width: 920px)" in STYLE_CSS
+    assert "@media (max-width: 620px)" in STYLE_CSS
+    assert "grid-template-columns: 48px 104px minmax(0, 1fr);" in STYLE_CSS
+    assert "grid-template-columns: 40px 60px minmax(0, 1fr);" in STYLE_CSS
+
+
+def test_0912_paused_jobs_are_not_waiting_or_requeued() -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+    content = client.post(
+        "/api/v1/contents",
+        json={"kind": "article", "title": "暂停语义", "platform": "web"},
+    ).json()
+    run = client.post(
+        f"/api/v1/contents/{content['id']}/analysis-runs",
+        json={"model": "test-model"},
+    ).json()
+    job_id = run["job"]["id"]
+
+    stored = client.app.state.store.get_job(job_id)
+    stored.claim("stale-worker")
+    client.app.state.store.save_job(stored)
+    stale_attempt = deepcopy(stored)
+
+    paused = client.post(f"/api/v1/jobs/{job_id}/pause")
+    assert paused.status_code == 200
+    assert paused.json()["execution_state"] == "paused"
+    assert paused.json()["queue_position"] is None
+    queue = client.get("/api/v1/queue").json()
+    assert job_id not in queue["job_ids"]
+    assert queue["stats"]["paused"] == 1
+    with pytest.raises(StaleJobAttemptError):
+        client.app.state.store.save_job(stale_attempt)
+
+    resumed = client.post(f"/api/v1/jobs/{job_id}/resume")
+    assert resumed.status_code == 200
+    assert resumed.json()["state"] == "queued"
+
+
+def test_0912_jobs_endpoint_caps_limit_and_orders_terminal_fallback_keys() -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+    jobs = []
+    for index in range(3):
+        content = client.post(
+            "/api/v1/contents",
+            json={"kind": "article", "title": f"排序内容 {index}", "platform": "web"},
+        ).json()
+        run = client.post(
+            f"/api/v1/contents/{content['id']}/analysis-runs",
+            json={"model": "test-model"},
+        ).json()
+        jobs.append(client.app.state.store.get_job(run["job"]["id"]))
+
+    now = datetime.now(UTC)
+    for index, job in enumerate(jobs):
+        job.state = JobState.COMPLETED
+        job.completed_at = now - timedelta(minutes=index)
+        client.app.state.store.save_job(job)
+
+    response = client.get("/api/v1/jobs", params={"limit": 200})
+    assert response.status_code == 200
+    returned = [item["id"] for item in response.json()]
+    assert returned[:3] == [job.id for job in jobs]
+    assert client.get("/api/v1/jobs", params={"limit": 201}).status_code == 422
+
+
+def test_0912_running_pause_releases_next_job_without_requeueing_paused_job() -> None:
+    first = Job(type="analyze", analysis_run_id="run-first")
+    second = Job(type="analyze", analysis_run_id="run-second")
+    jobs = {first.id: first, second.id: second}
+
+    class Store:
+        def get_job(self, job_id):
+            return jobs[job_id]
+
+        def save_job(self, job):
+            jobs[job.id] = job
+            return job
+
+    queue = LocalJobQueue(Store())
+    started = Event()
+    release = Event()
+    execution: list[str] = []
+
+    def runner(job_id, _transcript):
+        execution.append(job_id)
+        if job_id == first.id:
+            job = jobs[job_id]
+            job.claim("local-worker")
+            started.set()
+            release.wait(timeout=3)
+
+    thread = Thread(target=lambda: queue.submit(first.id, None, runner), daemon=True)
+    thread.start()
+    assert started.wait(timeout=3)
+    queue.submit(second.id, None, runner)
+
+    first.transition(JobState.PAUSED)
+    jobs[first.id] = first
+    queue.remove(first.id)
+    release.set()
+    thread.join(timeout=3)
+
+    assert execution == [first.id, second.id]
+    assert jobs[first.id].state is JobState.PAUSED
+    assert queue.snapshot()["job_ids"] == []

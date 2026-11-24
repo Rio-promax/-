@@ -1,0 +1,332 @@
+"""11-10 苹果风格 UI 按稿落地 —— 源码级契约（逐 R 累加）。
+
+仓内无前端测试框架，渲染几何与交互只能人工验收；本文件断言 DOM 结构、
+行为源码与 CSS 语义角色，保证 8 张设计定稿的结构改动真的进了产品代码，
+并守住 11-09 已落地的 token 层不回归。
+"""
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+import pytest
+
+
+UI_DIRECTORY = Path(__file__).parents[1] / "app" / "ui"
+
+
+@pytest.fixture(scope="module")
+def markup() -> str:
+    return (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def script() -> str:
+    return (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def styles() -> str:
+    return (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+
+def _css_blocks(styles: str, selector: str) -> list[str]:
+    return re.findall(re.escape(selector) + r"\s*\{(.*?)\}", styles, re.S)
+
+
+# ------------------------------------------------------------------ R1 侧栏
+
+
+def test_r1_five_nav_buttons_have_tooltip_and_aria(markup: str) -> None:
+    tags = re.findall(r"<button[^>]*data-view-target=[^>]*>", markup)
+    navs = [t for t in tags if 'class="nav-button' in t]
+    assert len(navs) == 5, navs
+    for tag in navs:
+        assert "data-tooltip=" in tag, tag
+        assert "aria-label=" in tag, tag
+
+
+def test_r1_rail_is_88px_and_keeps_expanded_state(styles: str) -> None:
+    assert "grid-template-columns: 88px minmax(0, 1fr)" in styles
+    assert "html.sidebar-expanded .app-shell" in styles
+    assert "--sidebar-width: 192px;" in styles  # 展开态保留，未破坏 11-09 契约
+
+
+def test_r1_tooltip_supports_hover_focus_and_long_press(script: str) -> None:
+    assert "pointerover" in script and "pointerout" in script
+    assert "focusin" in script and "focusout" in script
+    assert "touchstart" in script and "LONG_PRESS_MS = 450" in script
+    assert "prefers-reduced-motion" in script
+
+
+def test_r1_sprite_icons_present(markup: str) -> None:
+    for name in ("copy", "download", "more", "external", "refresh", "panel-left"):
+        assert f'<symbol id="icon-{name}"' in markup, name
+
+
+# ------------------------------------------------------------------ R2 知识库
+
+
+def test_r2_count_pill_is_filled_from_real_state(markup: str, script: str) -> None:
+    assert 'id="library-count-pill"' in markup
+    assert "function updateLibraryCountPill()" in script
+    assert "state.libraryTotal" in script
+    assert "tag.content_count" in script
+    assert "updateLibraryCountPill();" in script
+
+
+def test_r2_count_pill_does_not_hardcode_demo_number(markup: str, script: str) -> None:
+    assert "32 条" not in markup
+    assert "设计 · 32 条" not in script
+
+
+def test_r2_long_titles_are_clamped(styles: str) -> None:
+    blocks = _css_blocks(styles, ".library-card-title")
+    assert blocks
+    tail = blocks[-1]
+    assert "-webkit-line-clamp: 2" in tail
+    assert "overflow: hidden" in tail
+
+
+def test_r2_five_column_grid_is_preserved(styles: str) -> None:
+    last = _css_blocks(styles, ".library-grid")[-1]
+    assert "repeat(5, minmax(0, 1fr))" in last
+    assert "var(--space-3)" in last
+
+
+def test_r2_search_uses_fine_border_and_icon(markup: str, styles: str) -> None:
+    assert '<use href="#icon-search">' in markup
+    assert '<symbol id="icon-search"' in markup
+    assert any("var(--border-strong)" in b for b in _css_blocks(styles, ".library-search-field"))
+
+
+# ------------------------------------------------------------------ R3 设置
+
+
+def test_r3_seven_sections_and_single_panel_logic(markup: str, script: str) -> None:
+    import re as _re
+    buttons = _re.findall(r'data-settings-target="([^"]+)"', markup)
+    assert len(buttons) == 7, buttons
+    assert set(buttons) == {
+        "platform", "asr", "summary", "ask-model", "ai-ask-cloud", "storage", "operations",
+    }
+    assert "function showSettingsSection(" in script
+    assert "panel.hidden = !active" in script          # 已有逻辑，不能重复实现
+    assert 'showSettingsSection("platform");' in script  # 已有初始化调用
+    assert 'setAttribute("aria-expanded", String(active))' in script
+
+
+def test_r3_vertical_nav_is_200px(styles: str) -> None:
+    # 基础规则须含 200px 纵向导航；窄屏媒体查询另有一块单列降级，故不能只取最后一块
+    blocks = _css_blocks(styles, ".settings-layout")
+    assert any("200px minmax(0, 1fr)" in b for b in blocks), blocks
+    assert any("minmax(0, 1fr);" in b and "200px" not in b for b in blocks)
+    assert "flex-direction: column" in styles
+
+
+# ------------------------------------------------------------------ R4 AI 问答
+
+
+def test_r4_three_column_layout(styles: str, markup: str) -> None:
+    blocks = _css_blocks(styles, ".ask-layout")
+    assert any("200px minmax(0, 1fr) 288px" in b for b in blocks), blocks
+    # DOM 层面：范围侧栏必须真的是 ask-layout 的第三个子元素，而不是挂在容器外
+    import re as _re
+    layout = _re.search(r'<div class="ask-layout">(.*?)\n          </div>', markup, _re.S)
+    assert layout, "未找到 ask-layout 容器"
+    children = _re.findall(r'^ {12}<(?:aside|section)\b[^>]*class="([^"]+)"', layout.group(1), _re.M)
+    assert len(children) == 3, children
+    assert "ask-scope-panel" in children[2], children
+
+
+def test_r4_scope_sidebar_has_three_kinds(markup: str) -> None:
+    assert 'id="ask-scope-panel"' in markup
+    for tab in ("all", "tag", "folder"):
+        assert f'data-ask-scope-tab="{tab}"' in markup, tab
+    assert 'id="ask-tag-checks"' in markup and 'id="ask-folder-checks"' in markup
+
+
+def test_r4_existing_select_ids_and_payload_are_untouched(markup: str, script: str) -> None:
+    # D3：保留两个 id 与取值，不改检索请求口径
+    for sid in ("ask-scope-kind", "ask-material-scope", "ask-content-ids",
+                "ask-tag-ids", "ask-folder-ids"):
+        assert f'id="{sid}"' in markup, sid
+    assert 'function currentAskScope()' in script
+    for field in ("kind", "material_scope", "content_ids", "tag_ids", "favorite_folder_ids"):
+        assert field in script, field
+    # 侧栏模块只同步 option.selected，不给 ask-scope-kind 赋值
+    module = script[script.index("initAskScopePanel"):]
+    assert 'option.selected = input.checked' in module
+    assert 'ask-scope-kind").value =' not in module
+    assert "MutationObserver" in module
+
+
+# ------------------------------------------------------------------ R5 内容详情
+
+
+def test_r5_four_column_widths(styles: str) -> None:
+    assert "grid-template-columns: 88px minmax(0, 1fr)" in styles  # 全局 rail
+    blocks = _css_blocks(styles, ".result-workspace")
+    assert any("250px minmax(0, 1fr)" in b for b in blocks), blocks
+    assert "--result-outline-width: 290px;" in styles
+    reading = _css_blocks(styles, ".result-reading-layout")
+    assert any("var(--result-outline-width)" in b for b in reading), reading
+
+
+def test_r5_quick_rail_and_source_card_exist(markup: str, script: str) -> None:
+    for element_id in ("result-quick-panel", "result-quick-list", "result-quick-search",
+                       "result-source-thumb", "result-source-title",
+                       "result-source-badge", "result-source-time"):
+        assert f'id="{element_id}"' in markup, element_id
+    assert markup.count('class="result-source-card"') == 1
+    assert "function renderResultQuickRail()" in script
+    assert "function fillResultSourceCard(content)" in script
+    assert "state.libraryEntries" in script
+    assert script.count("renderResultQuickRail();") >= 3
+
+
+def test_r5_dark_card_uses_white_link_and_no_duplicate_banner(styles: str, markup: str) -> None:
+    source_css = styles[styles.index(".result-source-card {"):styles.index("html[data-theme=", styles.index(".result-source-card {"))]
+    assert "var(--surface-dark)" in source_css
+    assert "var(--action-text)" in source_css
+    assert "width: 242px;" in source_css and "min-height: 104px;" in source_css
+    assert ">点击打开来源</span>" in markup
+    assert 'class="result-link result-outline-source"' not in markup
+    assert markup.count('id="result-outline-source"') == 1
+    assert "var(--radius)" in source_css
+
+
+# ------------------------------------------------------------------ R6 图标工具栏
+
+
+def test_r6_four_toolbar_icons_have_aria_and_tooltip(markup: str) -> None:
+    import re as _re
+    toolbar = markup[markup.index('id="result-toolbar"'):markup.index('id="result-toolbar-menu"')]
+    buttons = _re.findall(r"<button[^>]*>", toolbar)
+    assert len(buttons) == 4, buttons
+    for tag in buttons:
+        assert "aria-label=" in tag, tag
+        assert "data-tooltip=" in tag, tag
+    for name in ("copy", "export", "delete", "more"):
+        assert f'id="result-toolbar-{name}"' in markup
+    assert '<symbol id="icon-arrow-up"' in markup
+
+
+def test_r6_outline_actions_moved_and_save_is_edit_only(markup: str, script: str) -> None:
+    heading = markup[markup.index('class="result-outline-heading"'):markup.index('id="result-outline-list"')]
+    assert 'id="result-outline-top"' in heading
+    assert 'id="result-outline-edit"' in heading
+    assert 'id="result-outline-save"' in heading
+    assert 'type="button" hidden>保存</button>' in markup
+    assert "save.hidden = true;" in script  # 既有编辑态机制继续生效
+    source = markup.index('id="result-outline-source"')
+    assert source < markup.index('id="result-outline-regenerate"')
+
+
+def test_r6_no_top_summary_model_or_text_source_button(script: str, markup: str) -> None:
+    assert "重新总结（新内容）" not in script
+    assert 'className = "result-summary-metadata"' not in script
+    assert ">打开来源</button>" not in markup
+    assert 'textContent = "打开原始来源"' not in script
+
+
+def test_r6_delete_has_confirmation_and_export_is_single_handler(script: str) -> None:
+    module = script[script.index("initResultToolbar"):]
+    assert "window.confirm" in module
+    assert 'method: "DELETE"' in module
+    assert "function handleResultToolbarExport()" in script
+    assert "exportSingleHistory(state.activeContentId)" in script
+
+
+# ------------------------------------------------------------------ R7 导出浮层
+
+
+def test_r7_no_hardcoded_markdown_in_frontend(script: str) -> None:
+    assert "format=markdown" not in script
+    assert 'format: "markdown"' not in script
+    assert '已导出 Markdown' not in script
+    assert 'anchor.download = `content-${contentId}.md`' not in script
+
+
+def test_r7_popover_options_match_backend_whitelist(markup: str) -> None:
+    assert 'id="export-popover"' in markup
+    destinations = re.findall(r'name="export-destination" value="([^"]+)"', markup)
+    formats = re.findall(r'name="export-format" value="([^"]+)"', markup)
+    assert destinations == ["download", "archive"], destinations
+    assert formats == ["markdown", "text", "subtitle", "json"], formats
+    api = (UI_DIRECTORY.parents[0] / "api" / "main.py").read_text(encoding="utf-8")
+    schemas = (UI_DIRECTORY.parents[0] / "api" / "schemas.py").read_text(encoding="utf-8")
+    assert 'pattern="^(markdown|text|subtitle|json)$"' in api
+    assert '"markdown", "text", "subtitle", "json"' in schemas
+    assert 'pattern="^(download|archive)$"' in api
+
+
+def test_r7_single_and_batch_share_one_format_source(script: str) -> None:
+    assert "function currentExportFormat()" in script
+    assert "function currentExportDestination()" in script
+    assert "function openExportPopover()" in script
+    assert "EXPORT_FORMAT_EXTENSIONS[format]" in script
+    body = script[script.index("async function exportHistorySelection"):]
+    assert "format: currentExportFormat()" in body
+    single = script[script.index("async function exportSingleHistory"):script.index("async function updateHistoryCategory")]
+    assert "currentExportFormat()" in single
+    assert "currentExportDestination()" in single
+    assert "encodeURIComponent(destination)" in single
+
+
+def test_r7_archive_destination_is_real_and_not_arbitrary_path() -> None:
+    api = (UI_DIRECTORY.parents[0] / "api" / "main.py").read_text(encoding="utf-8")
+    branch = api[api.index('if destination == "archive":'):api.index("        return Response(", api.index('if destination == "archive":'))]
+    assert 'entry.job.metadata.get("archive_path")' in branch
+    assert 'target.write_text(payload, encoding="utf-8")' in branch
+    assert 'f"export-{format}.{extension}"' in branch
+    assert "request" not in branch and "query" not in branch
+
+
+# ------------------------------------------------------------------ R8 收口
+
+
+def test_r8_night_overrides_cover_every_new_component(styles: str) -> None:
+    tail = styles[styles.index("11-10 按稿落地 R1"):]
+    for selector in (
+        ".ui-tooltip", ".library-count-pill", ".settings-nav-button",
+        ".ask-scope-panel", ".result-quick-panel", ".result-source-card",
+        ".result-toolbar-button", ".result-toolbar-menu",
+        ".result-outline-regenerate", ".export-popover", ".export-option",
+    ):
+        pattern = r'html\[data-theme="night"\][^\n{]*' + re.escape(selector)
+        assert re.search(pattern, tail), f"night 未覆盖 {selector}"
+
+
+def test_r8_component_layer_has_no_raw_literals_and_no_new_root(styles: str) -> None:
+    tail = styles[styles.index("11-10 按稿落地 R1"):]
+    hexes = set(re.findall(r"#[0-9a-fA-F]{3,6}\b", tail))
+    assert hexes <= {"#ffffff"}, hexes
+    assert "border-radius: 8px" not in tail
+    assert "font-size: 13px" not in tail
+    assert not re.search(r"(?m)^:root\s*\{", tail)
+
+
+def test_r8_responsive_breakpoints_cover_new_columns(styles: str) -> None:
+    tail = styles[styles.index("11-10 按稿落地 R1"):]
+    for breakpoint in ("max-width: 1180px", "max-width: 860px", "max-width: 560px"):
+        assert breakpoint in tail, breakpoint
+    assert ".result-workspace { grid-template-columns: minmax(0, 1fr); }" in tail
+    assert ".export-popover { right: 0; }" in tail
+    assert ".result-reading-layout { grid-template-columns: minmax(0, 1fr); }" in tail
+
+
+# ------------------------------------------------------------------ R9 运行验收补强
+
+
+def test_r9_quick_rail_recovers_when_opening_result_by_url(script: str) -> None:
+    """R9 浏览器实测：?content_id= 直达时快捷栏为空；补一次默认全库列表。"""
+    start = script.index("function renderResultQuickRail()")
+    end = script.index("(function initResultQuickRail()", start)
+    block = script[start:end]
+    assert "!query && !entries.length" in block
+    assert 'fetch(`${API_ORIGIN}/api/v1/history`)' in block
+    assert "state.libraryEntries = items.filter" in block
+    assert "state.quickRailLoaded" in block
+    assert "state.quickRailLoading" in block
+    assert 'empty.textContent = query ? "没有匹配的内容" : "暂无归档内容"' in block

@@ -1,0 +1,743 @@
+from __future__ import annotations
+
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+
+UI_DIRECTORY = Path(__file__).parents[1] / "app" / "ui"
+
+
+def _javascript_between(script: str, start: str, end: str) -> str:
+    return start + script.split(start, 1)[1].split(end, 1)[0]
+
+
+def _run_javascript(source: str) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is unavailable")
+    result = subprocess.run(
+        [node, "-e", source],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
+def test_task_log_ui_wires_timeline_and_diagnostic_actions() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    styles = (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+    for marker in (
+        '"#task-timeline"',
+        "/api/v1/jobs/${encodeURIComponent(jobId)}/events?",
+        "/api/v1/jobs/${encodeURIComponent(jobId)}/diagnostics",
+        "/api/v1/jobs/${encodeURIComponent(jobId)}/diagnostics/export",
+        'textContent = "复制日志"',
+        'textContent = "下载诊断"',
+        "taskEventAttemptLabel(event.attempt)",
+        "taskEventTimestamp(event.occurred_at)",
+    ):
+        assert marker in script
+    for marker in (".task-timeline", ".task-event", ".task-event.is-error"):
+        assert marker in styles
+
+
+def test_task_log_ui_javascript_syntax() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is unavailable; run node --check manually")
+    result = subprocess.run(
+        [node, "--check", str(UI_DIRECTORY / "app.js")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
+def test_scan_selection_submits_200_candidates_without_link_query() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    functions = _javascript_between(
+        script, "function selectedVideoUrls()", "\nfunction clearSpacePreview()",
+    )
+    _run_javascript(r'''
+const assert = require("node:assert/strict");
+const candidates = Array.from({length: 200}, (_, i) => ({candidate_id: `video:${i}`, url: `https://example.test/${i}`}));
+const state = {creatorScan: {scan_id: "scan-test", candidates}, creatorSelectedIds: new Set(candidates.map(c => c.candidate_id))};
+let submitted;
+async function confirmLinkQuery(button, request) { submitted = request; }
+function queryLinks() { throw new Error("Scan import must not query links again"); }
+''' + functions + r'''
+(async () => {
+  await importSelectedVideos({disabled: false});
+  assert.equal(submitted.scan_id, "scan-test");
+  assert.equal(submitted.candidate_ids.length, 200);
+})();
+''')
+
+
+def test_scan_confirmation_uses_scan_endpoint_without_query_dialog() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    function = _javascript_between(
+        script, "async function confirmLinkQuery(", "\nfunction selectedVideoUrls()",
+    )
+    _run_javascript(r'''
+const assert = require("node:assert/strict");
+const state = {linkQuery: null};
+const linkQueryDialog = {querySelectorAll() { throw new Error("Must not read query dialog"); }};
+const document = {querySelector: () => ({value: "standard"})};
+let requested;
+async function api(path, options) { requested = [path, JSON.parse(options.body)]; return {accepted: [], skipped: ["one"]}; }
+function closeCreatorScanDialog() {}
+function setLinkQueryDialogOpen() {}
+function showNotice() {}
+function isExpiredLinkQueryError() { return false; }
+function isConfigurationError() { return false; }
+''' + function + r'''
+(async () => {
+  const button = {disabled: false};
+  await confirmLinkQuery(button, {scan_id: "scan-test", candidate_ids: ["one"]});
+  assert.equal(requested[0], "/api/v1/imports/bilibili/scans/confirm");
+  assert.deepEqual(requested[1].candidate_ids, ["one"]);
+  assert.equal(button.disabled, false);
+})();
+''')
+
+
+def test_content_intake_uses_optional_product_tag_picker() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    markup = (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+
+    for marker in (
+        '"#text-entry-dialog"',
+        "openProductTextDialog",
+        "renderIntakeTagPicker",
+        "tag-picker-suggestions",
+        "selectInLibrary: false",
+        "newTagIds",
+        "libraryGridObserver",
+        "source-cover-fallback-title",
+    ):
+        assert marker in script
+    assert 'id="text-entry-dialog"' in markup
+    assert 'window.prompt("请输入标签名称")' not in script
+    assert 'window.prompt("请输入收藏夹名称")' not in script
+
+
+def test_navigation_uses_semantic_parent_context_without_view_stack() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+
+    for marker in (
+        "captureReturnContext",
+        "updateReturnControls",
+        "libraryOffset",
+        "state.batchReturnContext",
+        'sourceView: "batch-detail"',
+        'showView("history", { preserveReturnContext: true })',
+        "resultSequence = [...new Set",
+    ):
+        assert marker in script
+    task_list_card = script.split("function renderTaskListCard(entry)", 1)[1].split(
+        "\nfunction renderTaskList()", 1
+    )[0]
+    assert 'state.returnContext = { sourceView: "tasks" };' in task_list_card
+    assert "viewStack" not in script
+
+
+def test_r11_result_navigation_keeps_existing_controls_without_quick_select() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    markup = (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+
+    for control_id in ("result-footer-prev", "result-footer-back", "result-footer-next"):
+        assert f'id="{control_id}"' in markup
+    assert 'id="result-quick-select"' not in markup
+    assert "navigateResult(-1)" in script
+    assert "navigateResult(1)" in script
+
+
+def test_r12_existing_layout_and_task_drag_contracts_remain_present() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    styles = (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+    for breakpoint in ("@media (max-width: 680px)", "@media (max-width: 620px)"):
+        assert breakpoint in styles
+    for marker in (
+        "handle.draggable = true",
+        'handle.addEventListener("dragstart"',
+        'row.addEventListener("drop"',
+        "reorderTaskQueue(sourceId, job.id)",
+    ):
+        assert marker in script
+
+
+def test_intake_and_library_controls_match_compact_product_rules() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    markup = (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+    styles = (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+    for marker in (
+        'textContent = "查询"',
+        'textContent = "打开确认"',
+        "link-query-select-all",
+        "setHistoryFiltersOpen",
+        "historyFilterPanel",
+    ):
+        assert marker in script
+    for marker in (
+        'id="search-history"',
+        'id="open-history-filters"',
+        'id="history-filter-panel"',
+        'id="apply-history-filters"',
+        'id="query-links" type="button" hidden>查询</button>',
+    ):
+        assert marker in markup
+    for marker in (
+        ".history-filter-panel:not([hidden])",
+        ".link-query-select-all",
+        "grid-template-columns: 88px minmax(0, 1fr)",
+        ".settings-subnav",
+    ):
+        assert marker in styles
+
+
+def test_intake_and_library_visual_feedback_has_direct_search_and_aligned_actions() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    markup = (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+    styles = (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+    link_panel = markup.split('id="link-input-panel"', 1)[1].split(
+        'id="local-input-panel"', 1
+    )[0]
+    assert "input-lane-index" not in link_panel
+    assert "input-lane-state" not in link_panel
+    assert 'id="link-lane-title"' not in link_panel
+    for marker in (
+        'id="history-search-form"',
+        'id="history-query" type="search"',
+        'id="search-history" type="submit"',
+        "library-action-button",
+        "uiRevision",
+    ):
+        assert marker in markup
+    for marker in (
+        "historySearchForm?.addEventListener(\"submit\"",
+        "position: static;",
+        ".library-search-field",
+        ".library-action-button",
+        "font-size: 14px;",
+        "margin-left: clamp(-29px, -2vw, -11px);",
+    ):
+        assert marker in script or marker in styles
+
+
+def test_intake_selection_controls_keep_candidates_separate_and_compact() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    styles = (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+    assert "intake-tag-picker-candidates-row" in script
+    assert "tag-picker-candidate-viewport.setPointerCapture" not in script
+    assert 'input[type="checkbox"]' in styles
+    assert 'input[type="radio"]' in styles
+    assert "width: 17px !important" in styles
+    assert ".intake-folder-options label" in styles
+
+
+def test_task_list_uses_job_source_and_keeps_batch_queue_controls() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    task_renderer = script.rsplit("function renderTaskList()", 1)[-1].split(
+        "async function loadTaskList()", 1
+    )[0]
+    assert "renderTaskListCard(entry)" in task_renderer
+    assert "renderTaskDisplayGroup" in task_renderer
+    assert "updateTaskBatchToolbar()" in task_renderer
+    load_task_list = script.rsplit("async function loadTaskList()", 1)[-1].split(
+        "async function pollJob()", 1
+    )[0]
+    assert 'api("/api/v1/jobs?limit=200")' in load_task_list
+    assert "/api/v1/history" not in load_task_list
+
+
+def test_resummarize_uses_style_dialog_and_intake_progress_entry() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    markup = (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+    resummarize = script.split("function resummarizeContent", 1)[1].split("\nfunction ", 1)[0]
+    for marker in (
+        'heading.textContent = "重新总结"',
+        'submit.textContent = "开始重新总结"',
+        'body: JSON.stringify({ summary_style: style.value',
+        'showView("intake")',
+        'viewTask.textContent = "查看任务"',
+    ):
+        assert marker in script
+    assert 'course_notes: "课程笔记"' in script
+    assert "场景模板" not in resummarize
+    assert "summary_template" not in resummarize
+    assert 'id="intake-task-status"' in markup
+
+
+def test_library_uses_compact_folder_chips_and_portal_menu_without_batch_ui() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    markup = (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+    styles = (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+    for marker in (
+        "renderFavoriteFolderChip",
+        'body: JSON.stringify({ name, parent_id: null })',
+        "openLibraryCardMenu",
+        'id="library-menu-portal"',
+    ):
+        assert marker in script or marker in markup
+    assert 'id="history-batch-toolbar"' not in markup
+    assert 'id="history-batch-open"' not in markup
+    assert "library-card-selection" not in script
+    assert "history-batch" not in script
+    assert ".favorite-folder-chip" in styles
+    assert ".library-menu-portal" in styles
+
+
+def test_task_detail_confirmation_log_grouping_and_result_order_contracts() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    markup = (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+    styles = (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+    detail_renderer = script.split("function renderJob(job", 1)[1].split(
+        "function taskFilterMatches", 1
+    )[0]
+    delete_renderer = script.split("async function deleteJob", 1)[1].split(
+        "document.querySelector", 1
+    )[0]
+    assert 'addTiming("队列"' not in detail_renderer
+    assert 'addTiming("优先级"' not in detail_renderer
+    assert "openProductConfirmDialog" in delete_renderer
+    assert "window.confirm" not in delete_renderer
+    assert "task-event-log" in script
+    assert ".task-event-log" in styles
+
+    meta = markup.index('id="result-meta"')
+    tags = markup.index('id="result-tags-panel"')
+    reading = markup.index('class="result-reading-layout"')
+    navigation = markup.index('class="result-footer-navigation"')
+    assert meta < tags < reading < navigation
+
+
+def test_favorite_add_and_introduction_backfill_ui_contracts() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    markup = (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+    styles = (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+    for marker in (
+        "openFavoriteContentAdd",
+        "favoriteAddContext",
+        "favoriteAddSelectedIds",
+        "body: JSON.stringify({ favorite_folder_ids: folderIds })",
+        "/api/v1/content-introductions/backfill/preview",
+        "/api/v1/content-introductions/backfill",
+        "仅重试失败项",
+        "startIntroductionBackfill()",
+    ):
+        assert marker in script
+    for marker in (
+        'id="add-favorite-content"',
+        'id="backfill-introductions"',
+        'id="introduction-backfill-status"',
+    ):
+        assert marker in markup
+    assert ".favorite-add-tabs" in styles
+    assert ".introduction-backfill-status" in styles
+
+
+def test_favorite_add_recovers_active_batches_and_uses_paginated_history() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+
+    for marker in (
+        "favoriteAddBatch",
+        'mode: "progress"',
+        'mode: "association-retry"',
+        'mode: "link-retry"',
+        "association_failures",
+        "favoriteAddFailedLinks",
+        "setFavoriteAddFailedLinks",
+        "retryFavoriteAddLinks",
+        "failedUrls",
+        "仅重试收藏夹关联",
+        "重新查询失败项",
+        "favoriteAddAssociationFailuresForFolder",
+        "batchJobs",
+        "offset=${offset}",
+        "if (page.length < pageSize) break;",
+        "existingAssociationFailures",
+        "associationFailuresByContent",
+        "unresolvedAssociationFailures",
+        "existingBatchJobIds",
+        "...existingBatchJobIds",
+    ):
+        assert marker in script
+    assert "archived_only=true&limit=50&sort_by=updated_at&order=desc" not in script
+    assert "state.batchJobIds = [...state.favoriteAddBatch.jobIds]" in script
+    confirm = script.split("async function confirmLinkQuery", 1)[1].split(
+        "function updateLinkQueryAfterConfirm", 1
+    )[0]
+    retry_links = script.split("async function retryFavoriteAddLinks", 1)[1].split(
+        "async function queryFavoriteAddLink", 1
+    )[0]
+    assert "setFavoriteAddFailedLinks(favoriteAddContext.folderId, failedUrls)" in confirm
+    assert 'mode: "link-retry"' in confirm
+    assert "queryLinks(failedUrls, { preserveInput: true })" in retry_links
+    assert "state.favoriteAddContext.failedUrls = failedUrls" in script
+
+
+def test_collection_scan_contract_covers_pure_auto_mixed_manual_and_late_response_isolation() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    automatic = script.split("function automaticCollectionItem", 1)[1].split(
+        "function renderLinkQueryDialog", 1
+    )[0]
+    query = script.split("async function queryLinks", 1)[1].split(
+        "function updateLinkQueryAfterConfirm", 1
+    )[0]
+    import_selected = script.split("async function importSelectedVideos", 1)[1].split(
+        "function clearSpacePreview", 1
+    )[0]
+    cancel = script.split("async function cancelCreatorScan", 1)[1].split(
+        "function closeCreatorScanDialog", 1
+    )[0]
+    for marker in (
+        'item.status === "collection"',
+        "first.source_type",
+        "item.source_type === first.source_type && item.input_url === first.input_url",
+        "autoScannedQueryIds",
+        "query.auto_scan_started = Boolean(automaticItem)",
+        "preserveInput",
+    ):
+        assert marker in automatic or marker in query or marker in import_selected
+    assert "await confirmLinkQuery(button, {" in import_selected
+    assert "await queryLinks(" not in import_selected
+    for marker in (
+        "creatorScanRequestId",
+        "state.creatorScanRequestId !== requestId",
+        "DELETE",
+        'state.creatorScanSourceType || scan?.source_type || "creator"',
+    ):
+        assert marker in cancel or marker in script
+    assert '"/api/v1/imports/bilibili/watchlater-scans"' in script
+    assert '"/api/v1/imports/bilibili/favorite-scans"' in script
+    assert '"/api/v1/imports/bilibili/creator-scans"' in script
+
+
+def test_collection_query_executes_auto_scan_once_and_leaves_mixed_batches_manual() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    automatic = _javascript_between(
+        script, "function automaticCollectionItem", "function renderLinkQueryDialog"
+    )
+    query_links = _javascript_between(
+        script, "async function queryLinks", "function updateLinkQueryAfterConfirm"
+    )
+    _run_javascript(
+        f"""
+const assert = require("assert");
+const state = {{
+  linkQueryRequestId: 0,
+  intakeMode: "link",
+  autoScannedQueryIds: new Set(),
+  favoriteAddContext: null,
+  linkQuerySelectedIds: new Set(),
+}};
+const sourceUrlInput = {{ value: "" }};
+const importSubmitButton = {{ disabled: false, textContent: "" }};
+const queryLinksButton = {{ disabled: false, textContent: "" }};
+let response;
+let scanCalls = 0;
+function parseLinkInput(value) {{ return value.split(/\\n/).map((item) => item.trim()).filter(Boolean); }}
+function renderLinkQueryDialog() {{}}
+function setLinkQueryDialogOpen() {{}}
+function showNotice() {{}}
+function updateLinkHint() {{}}
+function updateInputPanelSummary() {{}}
+function syncImportAction() {{}}
+async function loadFavoriteFolders() {{}}
+async function loadTags() {{}}
+async function loadHistoryCategories() {{}}
+async function api() {{ return JSON.parse(JSON.stringify(response)); }}
+function startCollectionScan() {{ scanCalls += 1; }}
+{automatic}
+{query_links}
+(async () => {{
+  response = {{
+    query_id: "same-query",
+    items: [{{
+      item_id: "favorite-1",
+      input_url: "https://space.bilibili.com/1/favlist?fid=2",
+      status: "collection",
+      source_type: "favorite",
+      selectable: false,
+    }}],
+  }};
+  await queryLinks([response.items[0].input_url]);
+  await queryLinks([response.items[0].input_url]);
+  assert.equal(scanCalls, 1);
+  response = {{
+    query_id: "mixed-query",
+    items: [
+      {{
+        item_id: "favorite-2",
+        input_url: "https://space.bilibili.com/1/favlist?fid=2",
+        status: "collection",
+        source_type: "favorite",
+        selectable: false,
+      }},
+      {{
+        item_id: "video-1",
+        input_url: "https://www.bilibili.com/video/BV1",
+        status: "ready",
+        source_type: "video",
+        selectable: true,
+      }},
+    ],
+  }};
+  await queryLinks(response.items.map((item) => item.input_url));
+  assert.equal(scanCalls, 1);
+  assert.equal(state.linkQuery.auto_scan_started, false);
+}})().catch((error) => {{ console.error(error); process.exit(1); }});
+"""
+    )
+
+
+def test_bilibili_favorite_button_opens_folder_browser_with_status_filters() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    styles = (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+    connection_actions = script.split('if (connection.platform === "bilibili")', 1)[1].split(
+        'if (connection.platform === "zhihu")', 1
+    )[0]
+    favorite_action = connection_actions.split('scanFavorite.addEventListener("click"', 1)[1].split(
+        "scanWatchlater", 1
+    )[0]
+    candidate_view = script.split("function renderCreatorScan", 1)[1].split(
+        "async function pollCreatorScan", 1
+    )[0]
+
+    assert '"/api/v1/imports/bilibili/favorite-folders"' in script
+    assert "startBilibiliFavoriteBrowser()" in favorite_action
+    assert 'connection.status !== "CONNECTED"' not in favorite_action
+    assert "openCollectionScanInput(\"bilibili\")" not in connection_actions
+    for marker in (
+        '["all", "全部"]',
+        '["new", "未导入"]',
+        '["processing", "处理中"]',
+        '["summarized", "已导入"]',
+        '["failed", "导入失败"]',
+    ):
+        assert marker in candidate_view
+    assert "page_count" in candidate_view
+    assert "imported_page_count" in candidate_view
+    assert "已获取" in script
+    assert ".creator-scan-favorite-folders" in styles
+
+
+def test_link_query_ui_starts_polling_for_pending_batch_and_keeps_request_guard() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    query_links = _javascript_between(
+        script, "async function queryLinks", "function updateLinkQueryAfterConfirm"
+    )
+    assert "/api/v1/imports/query/${encodeURIComponent(queryId)}" in script
+    assert "/api/v1/imports/query/${encodeURIComponent(queryId)}/cancel" in script
+    _run_javascript(
+        f"""
+const assert = require("assert");
+const state = {{
+  linkQueryRequestId: 0,
+  intakeMode: "link",
+  autoScannedQueryIds: new Set(),
+  favoriteAddContext: null,
+  linkQuerySelectedIds: new Set(),
+}};
+const sourceUrlInput = {{ value: "" }};
+const importSubmitButton = {{ disabled: false, textContent: "" }};
+const queryLinksButton = {{ disabled: false, textContent: "" }};
+let scheduled = null;
+let notices = [];
+function parseLinkInput(value) {{ return value.split(/\\n/).map((item) => item.trim()).filter(Boolean); }}
+function renderLinkQueryDialog() {{}}
+function setLinkQueryDialogOpen() {{}}
+function showNotice(message) {{ notices.push(message); }}
+function updateLinkHint() {{}}
+function updateInputPanelSummary() {{}}
+function syncImportAction() {{}}
+async function loadFavoriteFolders() {{}}
+async function loadTags() {{}}
+async function loadHistoryCategories() {{}}
+function automaticCollectionItem() {{ return null; }}
+function scheduleLinkQueryPoll(requestId, queryId) {{ scheduled = [requestId, queryId]; }}
+async function api(path) {{
+  assert.equal(path, "/api/v1/imports/query");
+  return {{
+    query_id: "query-1",
+    status: "processing",
+    deadline_at: "2026-09-15T00:03:00Z",
+    items: [{{ item_id: "item-1", input_url: "https://example.test/slow", status: "pending", selectable: false }}],
+  }};
+}}
+{query_links}
+(async () => {{
+  await queryLinks(["https://example.test/slow"]);
+  assert.deepEqual(scheduled, [1, "query-1"]);
+  assert.equal(state.linkQuery.items[0].status, "pending");
+  assert.equal(queryLinksButton.textContent, "查询中…");
+  assert.deepEqual(notices, ["已开始逐项查询，可等待完成或取消"]);
+}})().catch((error) => {{ console.error(error); process.exit(1); }});
+""",
+    )
+
+
+def test_expired_link_query_submission_returns_to_intake_and_shows_error() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    recovery = _javascript_between(
+        script, "function isExpiredLinkQueryError", "async function confirmLinkQuery"
+    )
+    confirm = _javascript_between(
+        script, "async function confirmLinkQuery", "function selectedVideoUrls"
+    )
+    _run_javascript(
+        f"""
+const assert = require("assert");
+const state = {{
+  linkQueryRequestId: 4,
+  linkQuery: {{ query_id: "expired-query", tagIds: [], favoriteFolderIds: [] }},
+  linkQuerySelectedIds: new Set(["item-1"]),
+  favoriteAddContext: null,
+}};
+const sourceUrlInput = {{ value: "https://example.test/expired" }};
+const linkQueryDialog = {{
+  open: true,
+  querySelectorAll() {{ return [{{ dataset: {{ queryItemId: "item-1" }} }}]; }},
+  querySelector() {{ return null; }},
+}};
+const document = {{
+  querySelector(selector) {{
+    return selector === "#summary-style" ? {{ value: "general" }}
+      : selector === "#summary-strength" ? {{ value: "standard" }} : null;
+  }},
+}};
+const views = [];
+const notices = [];
+const button = {{ disabled: false }};
+function setLinkQueryDialogOpen(open) {{
+  linkQueryDialog.open = open;
+  if (!open) state.linkQueryRequestId += 1;
+}}
+function showView(view) {{ views.push(view); }}
+function updateLinkHint() {{}}
+function syncImportAction() {{}}
+function updateInputPanelSummary() {{}}
+function showNotice(message, isError) {{ notices.push([message, isError]); }}
+function isConfigurationError() {{ return false; }}
+async function api() {{
+  const error = new Error("link_query_expired");
+  error.status = 404;
+  throw error;
+}}
+{recovery}
+{confirm}
+(async () => {{
+  await confirmLinkQuery(button);
+  assert.equal(state.linkQuery, null);
+  assert.deepEqual([...state.linkQuerySelectedIds], []);
+  assert.equal(linkQueryDialog.open, false);
+  assert.deepEqual(views, ["intake"]);
+  assert.deepEqual(notices, [["查询会话已过期，请重新查询后提交", true]]);
+}})().catch((error) => {{ console.error(error); process.exit(1); }});
+"""
+    )
+
+
+def test_favorite_add_executes_recovery_pagination_and_association_only_retry() -> None:
+    script = (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+    recovery = _javascript_between(
+        script, "function favoriteAddTargetFolder", "async function queryFavoriteAddLink"
+    )
+    open_dialog = _javascript_between(
+        script, "async function openFavoriteContentAdd", "function renderFavoriteFolders"
+    )
+    _run_javascript(
+        f"""
+const assert = require("assert");
+const state = {{
+  favoriteFolders: [{{ id: "folder-1", name: "目标收藏夹", is_system: false }}],
+  favoriteAddContext: null,
+  favoriteAddBatch: null,
+  favoriteAddAssociationFailures: [],
+  favoriteAddFailedLinks: [],
+  favoriteAddChoices: [],
+  favoriteAddSelectedIds: new Set(),
+  linkQuery: null,
+  linkQuerySelectedIds: new Set(),
+  batchJobIds: [],
+  batchReport: null,
+}};
+const window = {{ clearTimeout() {{}} }};
+const linkQueryDialog = null;
+let renderMode = null;
+let pollCalls = 0;
+let requests = [];
+function closeLibraryCardMenu() {{}}
+function renderFavoriteContentAddDialog(options) {{ renderMode = options.mode; }}
+function setLinkQueryDialogOpen() {{}}
+function showNotice() {{}}
+async function loadHistory() {{}}
+function pollBatchJobs() {{ pollCalls += 1; }}
+async function queryLinks() {{}}
+let apiMode = "pages";
+async function api(path, options = {{}}) {{
+  requests.push([path, options]);
+  if (apiMode === "pages") {{
+    const offset = Number(new URL("http://test" + path).searchParams.get("offset"));
+    const count = offset === 0 ? 50 : offset === 50 ? 1 : 0;
+    return Array.from({{ length: count }}, (_, index) => ({{
+      content: {{ id: "content-" + (offset + index), favorite_folder_ids: [] }},
+      job: {{}},
+    }}));
+  }}
+  if (!options.method) {{
+    return {{ id: "content-stale", favorite_folder_ids: ["other-folder"] }};
+  }}
+  return {{ id: "content-stale", favorite_folder_ids: ["other-folder", "folder-1"] }};
+}}
+{recovery}
+{open_dialog}
+(async () => {{
+  await openFavoriteContentAdd(state.favoriteFolders[0]);
+  assert.equal(state.favoriteAddChoices.length, 51);
+  assert(requests.some(([path]) => path.includes("offset=50")));
+
+  state.favoriteAddBatch = {{ folderId: "folder-1", jobIds: ["job-1", "job-2"] }};
+  requests = [];
+  await openFavoriteContentAdd(state.favoriteFolders[0]);
+  assert.equal(renderMode, "progress");
+  assert.deepEqual(state.batchJobIds, ["job-1", "job-2"]);
+  assert.equal(pollCalls, 1);
+  assert.equal(requests.length, 0);
+
+  state.favoriteAddBatch = null;
+  state.favoriteAddAssociationFailures = [{{
+    content: {{ id: "content-stale", favorite_folder_ids: [] }},
+    job: {{ id: "job-existing" }},
+    folder_ids: ["folder-1"],
+    reason: "收藏夹关联失败",
+  }}];
+  state.favoriteAddContext = {{ folderId: "folder-1", mode: "association-retry", failedUrls: [] }};
+  requests = [];
+  apiMode = "association";
+  await retryFavoriteAssociations({{ disabled: false }});
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0][1].method, undefined);
+  assert.equal(requests[1][1].method, "PATCH");
+  assert.deepEqual(
+    JSON.parse(requests[1][1].body).favorite_folder_ids.sort(),
+    ["folder-1", "other-folder"],
+  );
+  assert(!requests.some(([path]) => path.includes("/imports/query/confirm")));
+}})().catch((error) => {{ console.error(error); process.exit(1); }});
+"""
+    )

@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">多源知识库</string>
+    <string name="title_activity_main">多源知识库</string>
+    <string name="title_activity_share">导入到多源知识库</string>
+    <string name="share_dialog_title">导入链接</string>
+    <string name="share_state_submitting">正在保存</string>
+    <string name="share_action_stay">留在产品</string>
+    <string name="share_action_back">返回原应用</string>
+    <string name="share_action_close">关闭</string>
+    <string name="title_activity_cookie_web">站点登录</string>
+    <string name="package_name">com.catsk.multisourcekb</string>
+    <string name="custom_url_scheme">com.catsk.multisourcekb</string>
+</resources>

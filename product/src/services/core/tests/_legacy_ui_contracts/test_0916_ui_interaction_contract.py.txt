@@ -1,0 +1,265 @@
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+import pytest
+
+
+UI_DIRECTORY = Path(__file__).parents[1] / "app" / "ui"
+
+
+@pytest.fixture(scope="module")
+def script() -> str:
+    return (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def markup() -> str:
+    return (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def styles() -> str:
+    return (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+
+def _css_block(styles: str, selector: str) -> str:
+    match = re.search(re.escape(selector) + r"\s*\{(.*?)\}", styles, re.S)
+    assert match is not None, f"missing css selector: {selector}"
+    return match.group(1)
+
+
+# R1 —— 删除任务后不再出现 job_not_found
+
+
+def test_api_handles_empty_success_body_without_json_parse(script: str) -> None:
+    assert "if (response.status === 204 || response.status === 205) return null;" in script
+    assert "const rawBody = await response.text();" in script
+    assert "if (!rawBody.trim()) return null;" in script
+    assert "return response.json();" not in script
+
+
+def test_delete_job_invalidates_polling_and_disables_trigger(script: str) -> None:
+    delete_body = script.split("async function deleteJob(", 1)[1].split("\n}\n", 1)[0]
+    assert "if (trigger) trigger.disabled = true;" in delete_body
+    assert "state.taskPollRequestSequence += 1;" in delete_body
+    assert "state.activeJobId = null;" in delete_body
+    assert "if (trigger?.isConnected) trigger.disabled = false;" in delete_body
+
+
+# R2 —— 书架紧凑度、浮窗简介与卡片操作
+
+
+def test_library_cards_follow_content_height_without_empty_action_gap(styles: str) -> None:
+    assert "align-items: start;" in _css_block(styles, ".library-grid")
+    assert "height: 100%;" not in _css_block(styles, ".library-card")
+    assert "margin-top: auto;" not in _css_block(styles, ".library-card-actions")
+
+
+def test_library_grid_uses_six_columns_with_proportional_card_scale(
+    script: str, styles: str
+) -> None:
+    grid = _css_block(styles, ".library-grid")
+    assert "grid-template-columns: repeat(6, minmax(0, 1fr));" in grid
+    assert "--library-card-scale: 1;" in grid
+    assert '.library-grid[data-columns="6"]' in styles
+    assert "--library-card-scale: .83;" in styles
+    assert "aspect-ratio: 16 / 9;" in _css_block(styles, ".library-card-cover")
+    card = _css_block(styles, ".library-card")
+    assert "gap: calc(7px * var(--library-card-scale, 1));" in card
+    assert "padding: calc(8px * var(--library-card-scale, 1));" in card
+    assert "font-size: calc(13px * var(--library-card-scale, 1));" in styles
+    assert "width < 900 ? 5 : 6;" in script
+
+
+def test_library_card_action_buttons_use_compact_hit_areas_and_clear_glyphs(styles: str) -> None:
+    assert "min-width: 180px;" not in _css_block(styles, ".library-menu-portal")
+    assert "min-width: 180px;" not in _css_block(styles, ".library-card-menu-items")
+    for selector in (".library-card-menu-toggle", ".library-card-introduction-toggle"):
+        toggle = _css_block(styles, selector)
+        assert "width: 26px;" in toggle
+        assert "height: 26px;" in toggle
+        assert "font-size: 16px;" in toggle
+        assert "color: var(--theme-card-ink, #24231f);" in toggle
+
+
+def test_library_card_introduction_uses_anchored_accessible_portal(script: str, styles: str) -> None:
+    card = script.split("function renderLibraryCard(entry)", 1)[1].split(
+        "\n}\n\nfunction renderHistoryEntries", 1
+    )[0]
+    assert "library-card-imported" not in card
+    assert 'introductionToggle.setAttribute("aria-expanded", "false");' in card
+    assert 'introductionToggle.setAttribute("aria-controls", "library-menu-portal");' in card
+    assert "openLibraryCardIntroduction(introductionToggle, content);" in card
+    assert "card.append(coverWrap, title, tags, actions);" in card
+    assert "function openLibraryCardIntroduction(trigger, content)" in script
+    assert 'introduction.setAttribute("role", "region");' in script
+    assert 'introduction.setAttribute("aria-label", "内容简介");' in script
+    assert 'event.key === "Escape"' in script
+    assert 'document.addEventListener("pointerdown", current.onPointerDown, true);' in script
+    assert 'window.addEventListener("resize", current.reposition);' in script
+    assert 'window.addEventListener("scroll", current.reposition, true);' in script
+    assert "max-height: min(240px, calc(100vh - 16px));" in _css_block(styles, ".library-menu-portal")
+
+
+def test_library_card_platform_icons_use_local_assets_with_generic_fallback(script: str) -> None:
+    badge = script.split("function renderLibraryPlatformBadge(platform)", 1)[1].split(
+        "\n}\n\nfunction positionLibraryMenu", 1
+    )[0]
+    for platform, filename in (
+        ("bilibili", "bilibili.ico"),
+        ("zhihu", "zhihu.ico"),
+        ("xiaohongshu", "xiaohongshu.ico"),
+        ("wechat", "wechat.png"),
+        ("douyin", "douyin.ico"),
+        ("youtube", "youtube.ico"),
+    ):
+        assert f'{platform}: "{filename}"' in badge
+    assert '"/ui"' in badge
+    assert '"."' in badge
+    assert 'icon.src = `${assetBase}/platform-icons/${filename}`;' in badge
+    assert 'badge.classList.add("is-generic");' in badge
+    assert "badge.textContent = label;" in badge
+
+
+# R3 —— 知识详情返回入口
+
+
+def test_result_view_has_icon_only_header_back_button(markup: str) -> None:
+    assert 'id="icon-arrow-left"' in markup
+    assert 'id="result-header-back"' in markup
+    assert 'aria-label="返回知识库"' in markup
+    assert '<use href="#icon-arrow-left">' in markup
+
+
+def test_header_back_button_reuses_existing_return_context(script: str) -> None:
+    assert script.count("async function loadHistory(") == 1
+    assert "#result-header-back" in script
+    assert "function returnToResultParent()" in script
+    controls = script.split("function updateReturnControls()", 1)[1].split("\n}\n", 1)[0]
+    assert 'headerBack.setAttribute("aria-label", label);' in controls
+    assert 'headerBack.hidden = state.currentView !== "result";' in controls
+    assert ': "返回知识库";' in controls
+    # 页头图标按钮不得被文本标签覆盖，否则 SVG 会被清掉
+    assert "headerBack.textContent" not in controls
+    # 页头、底部与既有入口必须共用同一恢复函数，不得出现第二套逻辑
+    assert (
+        'document.querySelector("#result-footer-back")?.addEventListener("click", returnToResultParent);'
+        in script
+    )
+    assert script.count("const source = state.returnContext?.sourceView;") == 1
+    assert ".result-header-back" in (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+
+# R4 —— 像素猫工作态动画与进度驱动位置
+
+
+def test_working_pixel_cat_has_frame_animation_with_static_fallback(styles: str) -> None:
+    assert "animation: pixel-cat-work-sprite" in _css_block(styles, '.pixel-cat[data-state="working"] .pixel-cat-art')
+    assert "@keyframes pixel-cat-work-sprite" in styles
+    reduced_blocks = re.findall(
+        r"@media \(prefers-reduced-motion: reduce\)\s*\{(.*?)\n\}", styles, re.S
+    )
+    assert reduced_blocks
+    assert any(
+        '.pixel-cat[data-state="working"] .pixel-cat-art' in block and "animation: none;" in block
+        for block in reduced_blocks
+    )
+
+
+def test_pixel_cat_position_follows_numeric_progress(script: str) -> None:
+    assert "const progressPercent" in script
+    assert 'cat.style.setProperty("--pixel-cat-position"' in script
+    assert "Number(job.progress || 0)" in script
+    assert "activeIndex / Math.max(1, TASK_STAGE_LABELS.length - 1)" not in script
+
+
+# R7 —— 小红书浏览器会话与只读平台分支
+
+
+def test_platform_connection_cards_keep_bilibili_xhs_and_read_only_paths_separate(script: str) -> None:
+    render = script.split("function renderPlatformConnections(report)", 1)[1].split(
+        "async function loadPlatformConnections()", 1
+    )[0]
+    assert 'if (connection.platform === "bilibili")' in render
+    assert 'connection.platform === "xiaohongshu"' in render
+    assert 'connection.supported' in render
+    assert 'connection.auth_type === "browser_session"' in render
+    assert 'connect.addEventListener("click", () => startXhsBrowserLogin(connect));' in render
+    assert 'check.addEventListener("click", () => checkPlatformConnection(connection.platform, check));' in render
+    assert 'disconnect.addEventListener("click", () => disconnectPlatform(connection.platform, disconnect));' in render
+    assert 'card.append(heading, meta, message);' in render
+    assert 'window.chrome.webview.postMessage({' in script
+    assert 'requestXhsShellAction("open_login")' in script
+    assert 'requestXhsShellAction("check_session")' in script
+    assert 'requestXhsShellAction("disconnect_session")' in script
+    assert 'result.session_invalidated !== true' in script
+
+
+def test_xhs_login_window_exposes_copy_link_and_evidence_based_recheck() -> None:
+    shell = (
+        Path(__file__).parents[4]
+        / "src"
+        / "services"
+        / "desktop-shell"
+        / "Program.cs"
+    ).read_text(encoding="utf-8")
+    assert 'Text = "复制当前链接"' in shell
+    assert "Clipboard.SetText(currentUrl);" in shell
+    assert 'Text = "重新检查"' in shell
+    assert "await HasVisibleRiskChallengeAsync()" in shell
+    assert "当前页面没有可操作的验证入口" in shell
+    assert "小红书要求人工验证，请在登录窗口中处理后再检查" not in shell
+    detector = shell.split("private async Task<bool> HasVisibleRiskChallengeAsync()", 1)[1]
+    assert "bodyText.slice" not in detector
+    assert "el.matches(challengeSelector)" in detector
+    assert "location.href" in detector
+    assert "document.title" in detector
+    assert "visibleChallenge || fullPageChallenge" in detector
+
+
+def test_platform_cards_expose_favorite_and_watchlater_scan_actions(script: str) -> None:
+    render = script.split("function renderPlatformConnections(report)", 1)[1].split(
+        "async function loadPlatformConnections()", 1
+    )[0]
+    assert 'scanFavorite.textContent = "扫描收藏";' in render
+    assert 'scanWatchlater.textContent = "扫描稍后再看";' in render
+    assert "startBilibiliFavoriteBrowser()" in render
+    assert 'openCollectionScanInput("bilibili")' not in render
+    assert 'openCollectionScanInput("zhihu")' in render
+    assert 'startWatchlaterScan("https://www.bilibili.com/watchlater")' in render
+    assert "请先生成二维码并登录" in render
+    assert "请先点击连接完成知乎登录" in render
+
+
+def test_collection_scan_input_routes_one_link_to_existing_candidate_scan(script: str) -> None:
+    assert "function openCollectionScanInput(" in script
+    open_input = script.split("function openCollectionScanInput(", 1)[1].split("\n}\n", 1)[0]
+    query = script.split("async function queryLinks(", 1)[1].split("\n}\n", 1)[0]
+    assert 'state.pendingCollectionScan = { platform, sourceType: "favorite" };' in open_input
+    assert 'showView("intake");' in open_input
+    assert "sourceUrlInput.focus();" in open_input
+    assert "state.pendingCollectionScan" in query
+    assert "urls.length !== 1" in query
+    assert "startCollectionScan(pending.sourceType, urls[0], false, pending.platform)" in query
+    assert query.index("state.pendingCollectionScan") < query.index('api("/api/v1/imports/query"')
+
+
+def test_open_collection_scan_input_invalidates_a_previous_link_query(script: str) -> None:
+    open_input = script.split("function openCollectionScanInput(", 1)[1].split("\n}\n", 1)[0]
+    assert "clearLinkQueryPolling();" in open_input
+    assert "state.linkQueryRequestId += 1;" in open_input
+    assert "state.linkQuery = null;" in open_input
+
+
+# R6 —— 标签切换竞态
+
+
+def test_load_history_replays_latest_selection_and_ignores_stale_response(script: str) -> None:
+    assert "state.libraryPendingHistoryRequest = { trash, append };" in script
+    assert "if (requestId !== state.libraryHistoryRequestSequence) return;" in script
+    finally_block = script.split("const pendingHistoryRequest = state.libraryPendingHistoryRequest;", 1)[1]
+    assert "loadHistory(pendingHistoryRequest);" in finally_block
+    assert "libraryHistoryRequestSequence: 0," in script
+    assert "libraryPendingHistoryRequest: null," in script

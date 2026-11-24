@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.api.main import create_app
+from app.domain.jobs import JobErrorCode, JobState
+from app.workflows.diagnostics import recovery_guidance
+
+
+APP_JS = Path(__file__).resolve().parents[1] / "app" / "ui" / "app.js"
+
+
+@pytest.mark.parametrize(
+    ("error_code", "action"),
+    [
+        ("auth_required", "login_recheck"),
+        ("access_restricted", "login_recheck"),
+        ("transcript_incomplete", "change_source"),
+        ("asr_timeout", "retry"),
+        ("transient_network", "retry"),
+        ("unknown", "diagnostics"),
+    ],
+)
+def test_r4_error_code_has_one_action_and_description(
+    error_code: str,
+    action: str,
+) -> None:
+    guidance = recovery_guidance(error_code)
+
+    assert guidance == recovery_guidance(error_code)
+    assert guidance["action"] == action
+    assert guidance["suggestion"].strip()
+
+
+def test_r4_diagnostic_api_serializes_action_without_invalid_transcript_retry() -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+    content = client.post(
+        "/api/v1/contents",
+        json={"kind": "article", "title": "诊断动作", "platform": "web"},
+    )
+    assert content.status_code == 201
+    run = client.post(
+        f"/api/v1/contents/{content.json()['id']}/analysis-runs",
+        json={"model": "test-model"},
+    )
+    assert run.status_code == 201
+    job_id = run.json()["job"]["id"]
+    job = client.app.state.store.get_job(job_id)
+    job.state = JobState.FAILED
+    job.error_code = JobErrorCode.TRANSCRIPT_INCOMPLETE
+    job.error_message = "转写不足"
+    client.app.state.store.save_job(job)
+
+    response = client.get(f"/api/v1/jobs/{job_id}/diagnostics")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["recovery_action"] == "change_source"
+    assert "重试" not in payload["recovery_suggestion"]
+    assert "recovery_action" in json.dumps(payload, ensure_ascii=False)
+
+
+def test_r4_ui_uses_server_action_and_does_not_retry_incomplete_transcript() -> None:
+    script = APP_JS.read_text(encoding="utf-8")
+
+    assert "job.recovery_action || fallback.action" in script
+    assert 'transcript_incomplete: {' in script
+    assert 'action: "change_source"' in script
+    assert "appendJobRecoveryAction(actions, job" in script
+    assert 'login_recheck: "登录并重新检测"' in script
+    assert 'change_source: "更换来源"' in script
+    assert 'diagnostics: "查看诊断"' in script
+    assert "请更换来源后重新查询" in script
+    # 任务列表页没有任务日志面板：诊断类失败在列表页改提供「重试」按钮，
+    # 诊断入口只保留在任务详情卡（2026-09-20）
+    assert 'const action = compact && failure.action === "diagnostics" ? "retry" : failure.action;' in script

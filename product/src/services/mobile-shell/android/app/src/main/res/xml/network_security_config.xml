@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全配置：只为知识库服务器放开明文 HTTP，其余域名继续强制 HTTPS。
+
+  刻意不使用 android:usesCleartextTraffic="true"——那是全局放开，会让任何
+  被 WebView 打开的站点都能走明文。
+
+  换服务器 / 换 IP 时必须同步改这里的 <domain>（见 ShellConfig 的注释）。
+-->
+<network-security-config>
+
+    <!-- 默认：禁止明文，保持 Android 的默认安全姿态。 -->
+    <base-config cleartextTrafficPermitted="false" />
+
+    <!-- 唯一例外：知识库服务器。includeSubdomains 保持 false，只放开这一个地址。 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">123.206.227.238</domain>
+    </domain-config>
+
+</network-security-config>

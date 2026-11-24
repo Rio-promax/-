@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAG 开发面板</title>
+  <link rel="stylesheet" href="/ui/dev-rag.css">
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <h1>RAG 开发面板</h1>
+      <button id="refresh" type="button">刷新</button>
+    </header>
+
+    <section class="selectors" aria-label="问答记录">
+      <label>会话<select id="session-select"><option value="">加载中</option></select></label>
+      <label>问答<select id="query-select"><option value="">未选择</option></select></label>
+    </section>
+    <p id="notice" class="notice" role="status" aria-live="polite"></p>
+
+    <section class="overview-grid" aria-label="运行配置">
+      <article class="card"><h2>回答模型</h2><div id="answer-model" class="rows"></div></article>
+      <article class="card"><h2>检索模型</h2><div id="retrieval-models" class="rows"></div></article>
+      <article class="card"><h2>切块</h2><div id="chunking" class="rows"></div></article>
+      <article class="card"><h2>索引覆盖</h2><div id="index-coverage" class="rows"></div><button id="index-rebuild" type="button">重建索引</button></article>
+    </section>
+
+    <section class="card chunking-samples">
+      <h2>切块样本</h2>
+      <div class="graph-navigation">
+        <button id="chunking-previous" type="button" disabled>上一页</button>
+        <span id="chunking-page" class="graph-page"></span>
+        <button id="chunking-next" type="button" disabled>下一页</button>
+        <button id="chunking-run" type="button" disabled>重建选中 · 0/5</button>
+      </div>
+      <div id="chunking-samples" class="rows"></div>
+      <div id="chunking-results" class="rows"></div>
+    </section>
+
+    <section class="card tag-reviews">
+      <h2>细标签审核</h2>
+      <div id="tag-review-list" class="rows"></div>
+    </section>
+
+    <section class="card graph-view">
+      <h2>关系图</h2>
+      <div class="graph-search">
+        <input id="graph-query" type="search" maxlength="100" aria-label="关系检索">
+        <button id="graph-search" type="button">搜索</button>
+      </div>
+      <div class="graph-navigation">
+        <button id="graph-back" type="button" disabled>返回</button>
+        <button id="graph-previous" type="button" disabled>上一页</button>
+        <span id="graph-page" class="graph-page"></span>
+        <button id="graph-next" type="button" disabled>下一页</button>
+      </div>
+      <div id="graph-coverage" class="graph-coverage"></div>
+      <div id="graph-results" class="table-scroll"></div>
+    </section>
+
+    <section class="record card">
+      <h2>问答记录</h2>
+      <div id="record-content" class="empty">未选择</div>
+    </section>
+  </main>
+  <script src="/ui/dev-rag.js" defer></script>
+</body>
+</html>

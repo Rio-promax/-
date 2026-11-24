@@ -1,0 +1,100 @@
+"""09-20 内容接入扫描与任务列表完善 —— 前端源码级契约。
+
+仓内没有前端测试框架（无 playwright / jest / vitest / cypress，app/ui 下无
+package.json），因此几何比例、渲染后 DOM 与坐标这类断言无法自动执行，只能
+断言源码文本。几何结果与交互留给人工浏览器验收。
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+import pytest
+
+
+UI_DIRECTORY = Path(__file__).parents[1] / "app" / "ui"
+
+
+@pytest.fixture(scope="module")
+def styles() -> str:
+    return (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def script() -> str:
+    return (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+
+
+def _css_block(styles: str, selector: str) -> str:
+    """取首个匹配的规则块；仅当该选择器在全文件只定义一处时才可用。"""
+
+    match = re.search(re.escape(selector) + r"\s*\{(.*?)\}", styles, re.S)
+    assert match is not None, f"missing css selector: {selector}"
+    return match.group(1)
+
+
+def _last_css_block(styles: str, selector: str) -> str:
+    """取末个匹配的规则块；同名选择器有多处定义时只有最后一处生效。"""
+
+    matches = re.findall(re.escape(selector) + r"\s*\{(.*?)\}", styles, re.S)
+    assert matches, f"missing css selector: {selector}"
+    return matches[-1]
+
+
+# R6 —— 候选卡片封面完整呈现，标题不加粗且最多两行
+
+
+def test_creator_cover_keeps_the_source_frame_ratio(styles: str) -> None:
+    cover = _css_block(styles, ".creator-scan-item-cover")
+    assert "aspect-ratio: 16 / 9;" in cover
+    assert "aspect-ratio: 1 / 1;" not in cover
+    assert "object-fit: contain;" in _css_block(styles, ".creator-scan-cover img")
+
+
+def test_creator_item_title_drops_the_strong_weight_and_clamps_to_two_lines(
+    styles: str,
+) -> None:
+    # .creator-scan-item-title 共 3 处定义，只有最后的 :6228 附近那块生效
+    # （font-weight 写在哪一处都能覆盖，行数与字号必须写在这块）。
+    title = _last_css_block(styles, ".creator-scan-item-title")
+    assert "font-weight: 400;" in title
+    assert "-webkit-line-clamp: 2;" in title
+    assert "line-clamp: 2;" in title
+    assert "white-space: nowrap;" not in title
+
+
+# R7 —— 扫描面板不再重复计数，按钮改名「全选」
+
+
+def test_creator_scan_meta_row_is_removed_from_dom_and_styles(
+    script: str, styles: str
+) -> None:
+    assert "creator-scan-meta" not in script
+    assert ".creator-scan-meta" not in styles
+
+
+def test_creator_scan_footer_reports_total_and_selected(script: str) -> None:
+    assert "const total = state.creatorScan?.candidates?.length || 0;" in script
+    assert "count.textContent = `共 ${total} 条 · 已选择 ${selected} 条`;" in script
+    # 底栏计数只由 updateCreatorSelectionCount 一处写入初值与增量
+    assert script.count('selected.id = "creator-selected-count";') == 1
+    assert script.count("updateCreatorSelectionCount();") == 2
+
+
+def test_creator_scan_select_all_button_label(script: str) -> None:
+    assert 'selectVisible.textContent = "全选";' in script
+    assert 'selectVisible.textContent = "选择当前结果";' not in script
+
+
+def test_creator_scan_status_line_skips_the_completed_state(script: str) -> None:
+    assert 'if (scan.status !== "completed") {' in script
+    # 完成态不再渲染状态行后，「扫描完成，共 N 条视频」这句文案成为死代码
+    assert "扫描完成，共" not in script
+
+
+# R12 —— 任务卡状态标签固定右端
+
+
+def test_task_list_card_status_is_pinned_to_the_right_edge(styles: str) -> None:
+    assert "margin-left: auto;" in _css_block(styles, ".task-list-card-heading .status")

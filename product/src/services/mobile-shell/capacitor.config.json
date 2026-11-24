@@ -1,0 +1,12 @@
+{
+  "appId": "com.catsk.multisourcekb",
+  "appName": "多源知识库",
+  "webDir": "www",
+  "server": {
+    "url": "http://123.206.227.238:8080",
+    "allowNavigation": []
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

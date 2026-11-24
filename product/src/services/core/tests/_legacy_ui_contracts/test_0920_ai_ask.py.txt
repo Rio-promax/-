@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.api.main import create_app
+
+
+UI_DIRECTORY = Path(__file__).parents[1] / "app" / "ui"
+
+
+@pytest.fixture(scope="module")
+def script() -> str:
+    return (UI_DIRECTORY / "app.js").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def markup() -> str:
+    return (UI_DIRECTORY / "index.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def styles() -> str:
+    return (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+
+# R1 —— 问答入口与设置
+
+
+def test_nav_ask_entry_sits_between_history_and_settings(markup: str) -> None:
+    history_index = markup.index('data-view-target="history"')
+    ask_index = markup.index('id="nav-ask"')
+    settings_index = markup.index('data-view-target="settings"')
+    assert history_index < ask_index < settings_index
+
+
+def test_nav_ask_opens_the_ask_view(markup: str) -> None:
+    start = markup.index('<button class="nav-button" id="nav-ask"')
+    tag = markup[start : markup.index("</button>", start)]
+    assert 'data-view-target="ask"' in tag
+    assert "AI 问答" in tag
+    assert "#icon-ask" in tag
+    assert '<section class="view ask-view" data-view="ask"' in markup
+    assert 'id="ask-question-form"' in markup
+
+
+def test_icon_lock_symbol_exists(markup: str) -> None:
+    assert '<symbol id="icon-lock" viewBox="0 0 16 16">' in markup
+
+
+def test_ask_answer_model_settings_and_query_controls_are_present(markup: str) -> None:
+    assert 'id="ask-model-form"' in markup
+    assert 'id="ask-reuse-summary"' in markup
+    assert 'id="ask-api-key"' in markup
+    assert 'id="ask-scope-kind"' in markup
+    assert 'id="ask-material-scope"' in markup
+    assert 'id="ask-cancel-query"' in markup
+    assert 'id="ask-continue-query"' in markup
+
+
+def test_ask_entry_uses_shared_view_navigation_and_api(script: str) -> None:
+    assert 'navButtons.forEach((button) => button.addEventListener("click", () => showView(button.dataset.viewTarget)))' in script
+    assert 'api("/api/v1/ask/settings")' in script
+    assert 'api("/api/v1/ask/queries"' in script
+    assert "function pollAskQuery(queryId)" in script
+
+
+# R2 —— 开关门禁与隔离
+
+
+def test_switch_removes_dom_when_disabled(script: str) -> None:
+    body = script.split("function applyAiAskSwitch(", 1)[1].split("\n}", 1)[0]
+    assert "enable_ai_ask === false" in body
+    assert "navAskButton?.remove()" in body
+    assert 'document.querySelector(\'[data-view="ask"]\')?.remove()' in body
+    assert 'api("/api/v1/settings").then(applyAiAskSwitch)' in script
+
+
+def test_enable_ai_ask_defaults_on_and_persists_off() -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+    settings = client.get("/api/v1/settings").json()
+    assert settings["enable_ai_ask"] is True
+
+    updated = client.put("/api/v1/settings", json={"enable_ai_ask": False}).json()
+    assert updated["enable_ai_ask"] is False
+    assert client.app.state.store.get_setting("enable_ai_ask") == "false"
+    assert client.get("/api/v1/settings").json()["enable_ai_ask"] is False
+
+
+def test_ask_answer_model_settings_are_separate_and_secret_is_not_returned() -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+    initial = client.get("/api/v1/ask/settings")
+    assert initial.status_code == 200
+    assert initial.json()["configured"] is False
+
+    response = client.put("/api/v1/ask/settings", json={
+        "provider": "openai-compatible",
+        "api_url": "https://example.test/v1/chat/completions",
+        "api_mode": "chat_completions",
+        "model": "test-answer-model",
+        "api_key": "test-only-secret",
+    })
+
+    assert response.status_code == 200
+    assert response.json()["configured"] is True
+    assert response.json()["api_key_configured"] is True
+    assert "api_key" not in response.json()
+    assert client.app.state.store.get_secret_setting("ask_api_key", purpose="AI 问答生成模型 API Key") == "test-only-secret"
+
+
+def test_ask_query_requires_model_configuration_before_persisting() -> None:
+    client = TestClient(create_app("sqlite:///:memory:"))
+
+    response = client.post("/api/v1/ask/queries", json={"question": "查找问答资料"})
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "请先配置回答模型"
+    assert client.get("/api/v1/ask/sessions").json() == []
+
+
+def test_ask_view_has_responsive_layout(styles: str) -> None:
+    assert ".ask-layout" in styles
+    assert "@media (max-width: 760px)" in styles

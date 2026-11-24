@@ -1,0 +1,301 @@
+"""11-09 苹果风格 UI 样式层改造 —— 设计 token 契约（源码级）。
+
+仓内没有前端测试框架（app/ui 下无 package.json / playwright / jest），
+因此渲染后几何与交互无法自动执行，只能断言 style.css 源码文本。
+对比度已改为从源码解析色阶 / 角色并计算 WCAG 数值（见 R5b）；
+视觉结果、night 切换与关键用户路径仍留给人工浏览器验收。
+
+本文件只验证「尺度与角色层」是否成立，不重复 0916 / 0920 的交互契约。
+"""
+from __future__ import annotations
+
+import colorsys
+import re
+from pathlib import Path
+
+import pytest
+
+
+UI_DIRECTORY = Path(__file__).parents[1] / "app" / "ui"
+
+TYPE_SCALE = {12, 14, 16, 18, 20, 24, 30, 36, 48, 60, 72}
+SPACING_SCALE = {4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 640, 768}
+ROLES = [
+    "--surface", "--surface-raised", "--surface-sunken", "--border",
+    "--border-strong", "--text-primary", "--text-secondary",
+    "--text-tertiary", "--text-disabled", "--action", "--action-text",
+    "--action-tint",
+]
+
+
+@pytest.fixture(scope="module")
+def styles() -> str:
+    return (UI_DIRECTORY / "style.css").read_text(encoding="utf-8")
+
+
+def _token_chunk(styles: str) -> str:
+    assert "11-09 Apple-style design tokens" in styles, "token 层缺失"
+    return styles[styles.index("11-09 Apple-style design tokens"):]
+
+
+def _first_block(chunk: str, pattern: str) -> str:
+    m = re.search(pattern + r"\s*\{(.*?)\n\}", chunk, re.S)
+    assert m is not None, f"missing block: {pattern}"
+    return m.group(1)
+
+
+def _last_block(styles: str, selector: str) -> str:
+    """同名选择器多处定义时只有最后一块生效。"""
+    matches = re.findall(re.escape(selector) + r"\s*\{(.*?)\}", styles, re.S)
+    assert matches, f"missing css selector: {selector}"
+    return matches[-1]
+
+
+# ------------------------------------------------------------------ R1 token 层
+
+
+def test_type_scale_tokens_are_complete(styles: str) -> None:
+    root = _first_block(_token_chunk(styles), r"(?m)^:root")
+    names = [
+        "--text-xs", "--text-sm", "--text-base", "--text-lg", "--text-xl",
+        "--text-2xl", "--text-3xl", "--text-4xl", "--text-5xl",
+        "--text-6xl", "--text-7xl",
+    ]
+    for name in names:
+        m = re.search(re.escape(name) + r":\s*([0-9.]+)px;", root)
+        assert m, f"{name} 未定义"
+        assert float(m.group(1)) in TYPE_SCALE, f"{name} 超出 type scale"
+    assert "--weight-normal:400;" in root
+    assert "--weight-bold:600;" in root
+    assert "em" not in "".join(re.findall(r"--text-[a-z0-9]+:\s*([^;]+);", root))
+
+
+def test_spacing_tokens_are_on_the_scale(styles: str) -> None:
+    root = _first_block(_token_chunk(styles), r"(?m)^:root")
+    values = [float(v) for v in re.findall(r"--space-\d+:\s*([0-9.]+)px;", root)]
+    assert len(values) >= 10
+    assert all(v in SPACING_SCALE for v in values)
+
+
+def test_semantic_role_layer_is_complete(styles: str) -> None:
+    root = _first_block(_token_chunk(styles), r"(?m)^:root")
+    for role in ROLES:
+        assert re.search(re.escape(role) + r":", root), f"缺少语义角色 {role}"
+
+
+def test_theme_aliases_point_at_roles_not_literal_colors(styles: str) -> None:
+    root = _first_block(_token_chunk(styles), r"(?m)^:root")
+    aliases = dict(re.findall(r"--theme-([a-z0-9-]+):\s*([^;]+);", root))
+    assert len(aliases) >= 60, "--theme-* 别名族被破坏"
+    assert aliases["ink"] == "var(--text-primary)"
+    assert aliases["accent"] == "var(--action)"
+    assert aliases["surface"] == "var(--surface-raised)"
+    assert aliases["modal-shadow"] == "var(--shadow-5)"
+    assert not any(v.startswith("#") or v.startswith("rgb") for v in aliases.values())
+
+
+def test_legacy_green_and_orange_palette_is_gone(styles: str) -> None:
+    for legacy in ("#edf1ee", "#287b67", "#b65c32", "#f4eadb", "#fffaf0",
+                   "#4e3024", "rgb(183 109 45", "rgb(22 13 8"):
+        assert legacy not in styles, f"残留旧主题色 {legacy}"
+    assert "#0071E3" in styles or "hsl(211, 100%, 45%)" in styles
+
+
+# ------------------------------------------------------------------ R2 / R3 尺度
+
+
+def test_component_colors_use_tokens_not_literals(styles: str) -> None:
+    hexes = set(re.findall(r"#[0-9a-fA-F]{3,6}\b", styles))
+    # 只剩纯白 / 纯黑 / 契约测试逐字保护的 fallback
+    assert hexes <= {"#fff", "#ffffff", "#000", "#000000", "#24231f"}, hexes
+    assert "rgba(" not in styles and "rgb(" not in styles
+
+
+def test_font_sizes_use_type_scale_and_no_em(styles: str) -> None:
+    values = re.findall(r"font-size:\s*([^;]+);", styles)
+    assert values
+    for value in values:
+        v = value.strip()
+        assert "em" not in v, f"font-size 使用 em: {v}"
+        if v.startswith("var(--text-"):
+            continue
+        if v.startswith("clamp("):
+            assert re.fullmatch(r"clamp\(var\(--text-[a-z0-9]+\),\s*[\d.]+(?:cqw|vw),\s*var\(--text-[a-z0-9]+\)\)", v), v
+            continue
+        m = re.fullmatch(r"(\d+)px", v)
+        assert m, f"font-size 未落在尺度: {v}"
+        assert int(m.group(1)) in TYPE_SCALE, f"font-size 越界: {v}"
+
+
+def test_font_weights_only_two_steps(styles: str) -> None:
+    values = set(re.findall(r"font-weight:\s*([^;]+);", styles))
+    assert values <= {"400", "600", "var(--weight-normal)", "var(--weight-bold)"}, values
+
+
+# ------------------------------------------------------------------ R4 圆角 / 阴影
+
+
+def test_border_radius_kinds_converged(styles: str) -> None:
+    values = set(re.findall(r"border-radius:\s*([^;]+);", styles))
+    assert values <= {"var(--radius)", "var(--radius-full)", "50%"}, values
+    assert len(values) <= 4
+    root = _first_block(_token_chunk(styles), r"(?m)^:root")
+    assert "--radius:12px;" in root
+    assert "--radius-full:9999px;" in root
+
+
+def test_shadow_elevation_scale_is_complete(styles: str) -> None:
+    root = _first_block(_token_chunk(styles), r"(?m)^:root")
+    for level in range(1, 6):
+        assert f"--shadow-{level}:" in root
+    assert "--shadow-ring:" in root
+    assert "--border-strong:" in root
+
+
+def test_box_shadows_use_elevation_tokens(styles: str) -> None:
+    literal = [
+        v.strip() for v in re.findall(r"box-shadow:\s*([^;]+);", styles)
+        if not v.strip().startswith("var(") and v.strip() != "none"
+    ]
+    # 只允许登记的偏移实线阴影（几何保留、色相已归一）
+    assert len(literal) <= 6, literal
+    assert all(re.match(r"^(?:3px 3px 0|4px 4px 0|0 2px 0|0 3px 0)\b", v) for v in literal)
+
+
+# ------------------------------------------------------------------ R5 暗色
+
+
+def test_night_only_overrides_the_role_layer(styles: str) -> None:
+    chunk = _token_chunk(styles)
+    night = _first_block(chunk, r'(?m)^html\[data-theme="night"\]')
+    assert "color-scheme: dark;" in night
+    for role in ROLES:
+        assert re.search(re.escape(role) + r":", night), f"night 未覆盖 {role}"
+    assert not re.search(r"(?m)^\s*--theme-[a-z0-9-]+\s*:", night), \
+        "night 不应再逐条覆盖 --theme-* 别名"
+    assert "--shadow-5:" in night
+    assert "--border-strong:" in night
+
+
+# ------------------------------------------------------------------ R6 布局
+
+
+def test_layout_convergence_uses_scale_values(styles: str) -> None:
+    root = _first_block(_token_chunk(styles), r"(?m)^:root")
+    m = re.search(r"--sidebar-width:\s*([0-9]+)px;", root)
+    assert m and int(m.group(1)) in SPACING_SCALE
+    assert "--result-outline-width: 290px;" in root
+    assert "repeat(5, minmax(0, 1fr))" in _last_block(styles, ".library-grid")
+    assert "var(--space-3)" in _last_block(styles, ".library-grid")
+
+
+def test_layout_layer_does_not_open_a_new_root(styles: str) -> None:
+    tail = styles[styles.index("11-09 Apple-style layout convergence"):]
+    assert not re.search(r"(?m)^:root\s*\{", tail)
+
+
+# ------------------------------------------------------------------ R5b 对比度自动脚本
+# Q4「混合处理」补实：原先 R5 验收声称有对比脚本但没有实现。这里直接从
+# style.css 解析色阶与语义角色，按 WCAG 2.x 相对亮度公式计算对比度；
+# 亮色与 night 各覆盖「页面底 / 普通表面 / 白卡或抬起表面」三种背景。
+
+
+HSL_PATTERN = re.compile(
+    r"hsl\(\s*([\d.]+)\s*[,\s]+\s*([\d.]+)%\s*[,\s]+\s*([\d.]+)%\s*"
+    r"(?:/\s*[\d.]+%?\s*)?\)"
+)
+
+
+def _declarations(block: str) -> dict[str, str]:
+    return dict(re.findall(r"--([a-z0-9-]+):\s*([^;]+);", block))
+
+
+def _role_layers(styles: str) -> tuple[dict[str, str], dict[str, str]]:
+    chunk = _token_chunk(styles)
+    light = _declarations(_first_block(chunk, r"(?m)^:root"))
+    night = dict(light)
+    night.update(_declarations(_first_block(chunk, r'(?m)^html\[data-theme="night"\]')))
+    return light, night
+
+
+def _rgb(expr: str, decls: dict[str, str], depth: int = 0) -> tuple[float, float, float]:
+    expr = expr.strip()
+    if depth > 8:
+        raise AssertionError(f"变量链过深或成环: {expr}")
+    ref = re.fullmatch(r"var\(--([a-z0-9-]+)\)", expr)
+    if ref:
+        name = ref.group(1)
+        assert name in decls, f"未解析的变量 --{name}"
+        return _rgb(decls[name], decls, depth + 1)
+    if expr.lower() in ("#fff", "#ffffff"):
+        return (1.0, 1.0, 1.0)
+    if expr.lower() in ("#000", "#000000"):
+        return (0.0, 0.0, 0.0)
+    hsl = HSL_PATTERN.fullmatch(expr)
+    assert hsl, f"无法解析的颜色: {expr}"
+    hue, sat, light = (float(v) for v in hsl.groups())
+    return colorsys.hls_to_rgb(hue / 360, light / 100, sat / 100)
+
+
+def _relative_luminance(rgb: tuple[float, float, float]) -> float:
+    def channel(value: float) -> float:
+        return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
+    r, g, b = (channel(v) for v in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _contrast(fg_expr: str, bg_expr: str, decls: dict[str, str]) -> float:
+    fg = _relative_luminance(_rgb(fg_expr, decls))
+    bg = _relative_luminance(_rgb(bg_expr, decls))
+    high, low = max(fg, bg), min(fg, bg)
+    return (high + 0.05) / (low + 0.05)
+
+
+def _assert_pairs(styles: str, decls: dict[str, str], surfaces: tuple[str, ...], night: bool) -> None:
+    text_roles = ("--text-primary", "--text-secondary")
+    for surface in surfaces:
+        for role in text_roles:
+            value = _contrast(f"var({role})", f"var({surface})", decls)
+            assert value >= 4.5, f"{'night' if night else 'light'} {role} on {surface}: {value:.3f}:1 < 4.5:1"
+        border = _contrast("var(--border-strong)", f"var({surface})", decls)
+        assert border >= 3.0, f"{'night' if night else 'light'} border-strong on {surface}: {border:.3f}:1 < 3:1"
+    action = _contrast("var(--action-text)", "var(--action)", decls)
+    assert action >= 4.5, f"{'night' if night else 'light'} action-text on action: {action:.3f}:1 < 4.5:1"
+
+
+def test_key_role_pairs_meet_wcag_contrast(styles: str) -> None:
+    light, night = _role_layers(styles)
+    # 亮色：页面底 / 普通表面 / 白卡；night：页面底 / 抬起表面 / 凹陷表面
+    _assert_pairs(styles, light, ("--surface-sunken", "--surface", "--surface-raised"), False)
+    _assert_pairs(styles, night, ("--surface", "--surface-raised", "--surface-sunken"), True)
+
+
+def test_known_contrast_deviation_is_registered(styles: str) -> None:
+    """三级元信息文字仍低于 4.5:1，按 Q3 同类登记为已知偏差、本轮不返工。
+
+    这里只钉住它不低于 3:1（UI 组件 / 大字号下限），避免后续无意调得更浅。
+    """
+    light, _ = _role_layers(styles)
+    value = _contrast("var(--text-tertiary)", "var(--surface-sunken)", light)
+    assert value >= 3.0, f"text-tertiary 低于 3:1: {value:.3f}:1"
+    assert value < 4.5, "若三级文字已达标，请同步删除方案中的已知偏差登记"
+
+
+# ------------------------------------------------------------------ 既有契约不回归
+
+
+def test_legacy_contract_strings_survive(styles: str) -> None:
+    for needle in (
+        "align-items: start;",
+        "width: 26px;",
+        "height: 26px;",
+        "font-size: 16px;",
+        "color: var(--theme-card-ink, #24231f);",
+        "max-height: min(240px, calc(100vh - 16px));",
+        "aspect-ratio: 16 / 9;",
+        "object-fit: contain;",
+        "font-weight: 400;",
+        "-webkit-line-clamp: 2;",
+        "margin-left: auto;",
+    ):
+        assert needle in styles, f"既有契约断言串被破坏: {needle}"
